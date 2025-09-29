@@ -58,8 +58,6 @@
             </div>
           </div>
 
-          
-
           <div class="col-12">
             <label class="form-label">Base URL publik</label>
             <input name="base" id="baseUrl" class="form-control" value="<?= rtrim(site_url(), '/') ?>">
@@ -86,6 +84,7 @@
         <div id="alertBox" class="alert alert-success d-none"></div>
 
         <div class="row g-3 align-items-start">
+          <!-- KIRI: CARD (ini yang dipakai saat cetak) -->
           <div class="col-md-6">
             <div class="device-card p-3 border rounded">
               <div class="d-flex justify-content-between align-items-start">
@@ -93,25 +92,37 @@
                   <div id="pvNama" class="fw-semibold">—</div>
                   <div class="small text-muted">Kode: <code id="pvKode">—</code></div>
                 </div>
-                <span id="pvBadge" class="badge text-bg-success">Normal</span>
+                
               </div>
 
-              <!-- Foto preview -->
+              <!-- Foto preview layar -->
               <div id="pvPhotoBox" class="photo-box mt-3 d-none">
                 <img id="pvImg" class="img-fluid rounded border" alt="Foto AC">
               </div>
 
-              <hr class="my-3">
-              <div class="small">
-                <div><span class="text-muted">Merek:</span> <span id="pvMerek">—</span></div>
-                <div><span class="text-muted">Model/SN:</span> <span id="pvModelSn">—</span></div>
-                <div><span class="text-muted">Lokasi:</span> <span id="pvLokasi">—</span></div>
+              <!-- Grid konten untuk CETAK (juga tampil di layar, tapi rapi) -->
+              <div class="print-grid mt-3">
+                <!-- QR kecil khusus cetak -->
+                <div class="qr-in-card">
+                  <div id="qrInCard" class="qr-box"></div>
+                </div>
+                <!-- Info kanan -->
+                <div class="label-info">
+                  <div class="kv"><span class="label">Merek:</span> <span id="pvMerek">—</span></div>
+                  <div class="kv"><span class="label">Model/SN:</span> <span id="pvModelSn">—</span></div>
+                  <div class="kv"><span class="label">Lokasi:</span> <span id="pvLokasi">—</span></div>
+                  <div class="small text-muted url-line mt-1">
+                    <i class="bi bi-link-45deg"></i>
+                    <span id="cardUrlText" class="url-text">—</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
+          <!-- KANAN: QR besar + aksi -->
           <div class="col-md-6 text-center">
-            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white">
+            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty">
               <div id="qrcode"></div>
             </div>
             <div class="mt-2">
@@ -119,32 +130,20 @@
               <div class="text-break" id="pvUrl">—</div>
             </div>
             <div class="d-grid d-sm-flex gap-2 mt-3">
-              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-arrow-up-right"></i> Buka URL</a>
-              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button"><i class="bi bi-download"></i> Download PNG</button>
-              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-printer"></i> Cetak Label</button>
-              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button"><i class="bi bi-filetype-json"></i> Simpan JSON</button>
+              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-box-arrow-up-right"></i> Buka URL
+              </a>
+              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button">
+                <i class="bi bi-download"></i> Download PNG
+              </button>
+              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button">
+                <i class="bi bi-printer"></i> Cetak Label
+              </button>
+              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button">
+                <i class="bi bi-filetype-json"></i> Simpan JSON
+              </button>
             </div>
           </div>
-        </div>
-
-        <!-- area cetak -->
-        <div id="printArea" class="print-card mt-4 bg-white">
-          <div class="row g-3 align-items-center">
-            <div class="col-4 text-center"><div id="printQR"></div></div>
-            <div class="col-8">
-              <div class="fw-semibold" id="prNama">—</div>
-              <div class="small" id="prLokasi">—</div>
-              <div class="small text-muted">Kode: <code id="prKode">—</code></div>
-              <div class="small text-muted d-flex align-items-center gap-1 url-line">
-                <i class="bi bi-link-45deg"></i>
-                <span id="prUrl" class="text-break">—</span>
-              </div>
-              <div id="prPhotoBox" class="mt-2 d-none">
-                <img id="prImg" class="print-photo rounded border" alt="Foto AC">
-              </div>
-            </div>
-          </div>
-          <div class="small text-muted mt-2">Tempel di unit. Teknisi cukup scan kamera HP.</div>
         </div>
 
       </div>
