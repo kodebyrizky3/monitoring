@@ -13,20 +13,23 @@ if (!isset($token) || !$token) {
 <div id="__page" data-token="<?= esc($token ?? '') ?>"></div>
 
 <div class="card shadow-sm mb-3 overflow-hidden">
-  <div class="hero-photo ratio ratio-16x9 position-relative bg-body-secondary">
+  <!-- HERO PHOTO -->
+  <div class="hero-photo ratio ratio-16x9 position-relative">
     <img id="acPhoto" class="w-100 h-100 object-fit-cover d-none" alt="Foto AC" loading="lazy">
     <div id="photoSkeleton" class="skeleton"></div>
 
-    <div class="photo-tools position-absolute top-0 end-0 m-2 d-flex gap-2">
-      <button id="btnZoom" class="btn btn-light btn-sm d-none" aria-label="Perbesar foto">
+    <!-- Tools kiri atas -->
+    <div class="photo-tools position-absolute top-0 start-0 m-2 d-flex gap-2">
+      <button id="btnZoom" class="btn btn-fab btn-light btn-sm d-none" aria-label="Perbesar foto" title="Perbesar">
         <i class="bi bi-arrows-fullscreen"></i>
       </button>
     </div>
   </div>
 
+  <!-- BODY -->
   <div class="card-body">
     <h1 class="h5 mb-1" id="namaAlat">Perangkat</h1>
-    <div class="text-muted small mb-2">Kode: <code id="kodeQr">—</code></div>
+    <div class="text-muted small mb-3">Kode: <code id="kodeQr">—</code></div>
 
     <div class="row g-2 quick-facts">
       <div class="col-12">
@@ -39,7 +42,7 @@ if (!isset($token) || !$token) {
         </div>
       </div>
 
-      <div class="col-6">
+      <div class="col-6 col-lg-4">
         <div class="fact d-flex align-items-center p-2 rounded border bg-body">
           <i class="bi bi-cpu me-2"></i>
           <div>
@@ -49,7 +52,7 @@ if (!isset($token) || !$token) {
         </div>
       </div>
 
-      <div class="col-6">
+      <div class="col-6 col-lg-4">
         <div class="fact d-flex align-items-center p-2 rounded border bg-body">
           <i class="bi bi-upc-scan me-2"></i>
           <div>
@@ -59,7 +62,7 @@ if (!isset($token) || !$token) {
         </div>
       </div>
 
-      <div class="col-12">
+      <div class="col-12 col-lg-4">
         <div class="fact d-flex align-items-center p-2 rounded border bg-body">
           <i class="bi bi-geo-alt me-2"></i>
           <div class="w-100">
@@ -72,6 +75,7 @@ if (!isset($token) || !$token) {
   </div>
 </div>
 
+<!-- Laporan -->
 <div class="card shadow-sm">
   <div class="card-header bg-body fw-semibold d-flex align-items-center gap-2">
     <i class="bi bi-chat-left-text"></i> Laporan user aktif
@@ -81,6 +85,7 @@ if (!isset($token) || !$token) {
   </div>
 </div>
 
+<!-- Modal Foto -->
 <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content bg-dark border-0">
@@ -106,15 +111,60 @@ if (!isset($token) || !$token) {
 <?= $this->section('styles') ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <style>
-  .object-fit-cover { object-fit: cover; }
+  :root{
+    --card-pad: 1rem;
+  }
+  .object-fit-cover   { object-fit: cover; }
   .object-fit-contain { object-fit: contain; }
-  .hero-photo { background: var(--bs-secondary-bg); }
-  .skeleton { position:absolute; inset:0; background:linear-gradient(90deg, rgba(0,0,0,.06) 25%, rgba(0,0,0,.10) 37%, rgba(0,0,0,.06) 63%); background-size:400% 100%; animation:shimmer 1.4s ease-in-out infinite; }
-  @keyframes shimmer { 0% {background-position:100% 0} 100% {background-position:0 0} }
+  .hero-photo         { background: var(--bs-secondary-bg); }
+
+  /* Skeleton shimmer */
+  .skeleton { position:absolute; inset:0;
+    background:linear-gradient(90deg, rgba(0,0,0,.06) 25%, rgba(0,0,0,.10) 37%, rgba(0,0,0,.06) 63%);
+    background-size:400% 100%; animation:shimmer 1.4s ease-in-out infinite; }
+  @keyframes shimmer { from {background-position:100% 0} to {background-position:0 0} }
+
+  /* FAB button look */
+  .btn-fab { border-radius: 999px; width: 36px; height: 36px; display:inline-flex; align-items:center; justify-content:center; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+
+  /* Quick facts */
   .quick-facts .fact i { font-size: 1.1rem; color: var(--bs-secondary-color); }
+  .quick-facts .fact   { transition: background-color .2s ease; }
+  .quick-facts .fact:hover { background-color: var(--bs-tertiary-bg); }
+
+  /* Better card spacing on mobile */
+  @media (max-width: 576px){
+    .card-body{ padding: var(--card-pad); }
+  }
 </style>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
 <script src="<?= base_url('assets/js-teknisi/ac-detail.js') ?>"></script>
+<script>
+// Fallback ringan: buka modal saat tombol/thumbnail di-klik
+(() => {
+  const img  = document.getElementById('acPhoto');
+  const skel = document.getElementById('photoSkeleton');
+  const btn  = document.getElementById('btnZoom');
+  const m    = document.getElementById('photoModal');
+  const mi   = document.getElementById('modalPhoto');
+
+  const open = () => {
+    if (!img || !img.src) return;
+    mi.src = img.currentSrc || img.src;
+    new bootstrap.Modal(m).show();
+  };
+
+  if (img) {
+    img.addEventListener('load', () => {
+      img.classList.remove('d-none');
+      skel?.classList.add('d-none');
+      btn?.classList.remove('d-none');
+    });
+    img.addEventListener('click', open);
+  }
+  btn?.addEventListener('click', open);
+})();
+</script>
 <?= $this->endSection() ?>
