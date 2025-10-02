@@ -9,38 +9,22 @@ use CodeIgniter\Database\Exceptions\DatabaseException;
 
 class AcUnits extends BaseController
 {
-    /* LIST (server-render pertama + counters awal) */
+    /* LIST (render awal + angka kartu) */
     public function index()
     {
         $AC   = new AcUnitModel();
-        $rows = $AC->orderBy('id','DESC')->findAll();
-
-        // counters global (tanpa filter)
-        $db = \Config\Database::connect();
-        $cnt = $db->table('ac_units')
-            ->select("
-                COUNT(*) AS total,
-                SUM(CASE WHEN status_ac='MENUNGGU_PERBAIKAN' THEN 1 ELSE 0 END) AS wait_cnt,
-                SUM(CASE WHEN status_ac='DALAM_PERBAIKAN'   THEN 1 ELSE 0 END) AS doing_cnt,
-                SUM(CASE WHEN status_ac='NORMAL'            THEN 1 ELSE 0 END) AS normal_cnt
-            ", false)
-            ->get()->getRowArray() ?? ['total'=>0,'wait_cnt'=>0,'doing_cnt'=>0,'normal_cnt'=>0];
+        $list = $AC->select('id,kode_qr,nomor_unik,tipe_model,lokasi,status_ac')
+                   ->orderBy('id','DESC')->findAll(10);
 
         return view('Admin/ac_units/index', [
-            'title'        => 'Data Alat · AC',
-            'activeMenu'   => 'ac.list',
-            'rows'         => $rows,
-            'countTotal'   => (int)$cnt['total'],
-            'countWait'    => (int)$cnt['wait_cnt'],
-            'countDoing'   => (int)$cnt['doing_cnt'],
-            'countNormal'  => (int)$cnt['normal_cnt'],
-            // untuk SweetAlert dari flash
-            'flashOk'      => session()->getFlashdata('ok'),
-            'flashErr'     => session()->getFlashdata('err'),
+            'title'      => 'Data Alat · AC',
+            'activeMenu' => 'ac.list',
+            'rows'       => $list,
+            'stats'      => $this->calcStats(),  // <-- angka kartu
         ]);
     }
 
-    /* SEARCH (JSON untuk tabel/pager + update cards) */
+    /* ====== ENDPOINT SEARCH (JSON) untuk tabel + refresh kartu ====== */
     public function search()
     {
         $q       = trim($this->request->getGet('q') ?? '');
@@ -49,80 +33,55 @@ class AcUnits extends BaseController
         $page    = max((int)($this->request->getGet('page') ?? 1), 1);
         $offset  = ($page - 1) * $perPage;
 
-        $db  = \Config\Database::connect();
-        $mdl = new AcUnitModel();
-
-        // base builder untuk TABLE (q + status)
-        $base = $mdl->select('id,kode_qr,nomor_unik,tipe_model,lokasi,status_ac')
-                    ->orderBy('id','DESC');
+        $m = new AcUnitModel();
+        $b = $m->select('id,kode_qr,nomor_unik,tipe_model,lokasi,status_ac')
+               ->orderBy('id','DESC');
 
         if ($q !== '') {
-            $base = $base->groupStart()
-                ->like('kode_qr', $q)
-                ->orLike('nomor_unik', $q)
-                ->orLike('tipe_model', $q)
-                ->orLike('lokasi', $q)
-            ->groupEnd();
+            $b = $b->groupStart()
+                    ->like('kode_qr', $q)
+                    ->orLike('nomor_unik', $q)
+                    ->orLike('tipe_model', $q)
+                    ->orLike('lokasi', $q)
+                 ->groupEnd();
         }
         if ($status !== '') {
-            $base = $base->where('status_ac', $status);
+            $b = $b->where('status_ac', $status);
         }
 
-        // total berdasarkan q + status
-        $total = (clone $base)->select('id')->orderBy('', '', false)->countAllResults(false);
+        // total
+        $countB = clone $b;
+        $total  = $countB->select('id')->countAllResults(false);
 
-        // ambil halaman
-        $rows = $base->limit($perPage, $offset)->get()->getResultArray();
+        // page data
+        $rows = $b->limit($perPage, $offset)->get()->getResultArray();
 
-        // map rows untuk front-end
-        $data = array_map(static function($r){
-            $id  = (int)$r['id'];
+        // siapkan URL aksi buat tabel
+        $data = array_map(static function(array $r){
+            $id = (int)$r['id'];
             return [
-                'id'        => $id,
-                'kode_qr'   => (string)($r['kode_qr'] ?? ''),
-                'nomor_unik'=> (string)($r['nomor_unik'] ?? ''),
-                'tipe_model'=> (string)($r['tipe_model'] ?? ''),
-                'lokasi'    => (string)($r['lokasi'] ?? ''),
-                'status_ac' => (string)($r['status_ac'] ?? ''),
-                'show_url'  => site_url('admin/data-alat/ac/'.$id),
-                'edit_url'  => site_url('admin/data-alat/ac/'.$id.'/edit'),
-                'dl_qr_url' => site_url('admin/data-alat/ac/'.$id.'/qr/download'),
-                'del_url'   => site_url('admin/data-alat/ac/'.$id.'/delete'),
+                'id'         => $id,
+                'kode_qr'    => (string)($r['kode_qr'] ?? ''),
+                'nomor_unik' => (string)($r['nomor_unik'] ?? ''),
+                'tipe_model' => (string)($r['tipe_model'] ?? ''),
+                'lokasi'     => (string)($r['lokasi'] ?? ''),
+                'status_ac'  => (string)($r['status_ac'] ?? ''),
+                'show_url'   => route_to('admin.ac.show', $id),
+                'edit_url'   => route_to('admin.ac.edit', $id),
+                'dl_qr_url'  => route_to('admin.ac.qr.download', $id),
+                'del_url'    => route_to('admin.ac.delete', $id),
             ];
         }, $rows ?? []);
-
-        // counters untuk cards: hanya q (abaikan status)
-        $counterQB = $db->table('ac_units');
-        if ($q !== '') {
-            $counterQB = $counterQB->groupStart()
-                ->like('kode_qr', $q)
-                ->orLike('nomor_unik', $q)
-                ->orLike('tipe_model', $q)
-                ->orLike('lokasi', $q)
-            ->groupEnd();
-        }
-        $counters = $counterQB->select("
-            COUNT(*) AS total,
-            SUM(CASE WHEN status_ac='MENUNGGU_PERBAIKAN' THEN 1 ELSE 0 END) AS wait_cnt,
-            SUM(CASE WHEN status_ac='DALAM_PERBAIKAN'   THEN 1 ELSE 0 END) AS doing_cnt,
-            SUM(CASE WHEN status_ac='NORMAL'            THEN 1 ELSE 0 END) AS normal_cnt
-        ", false)->get()->getRowArray() ?? ['total'=>0,'wait_cnt'=>0,'doing_cnt'=>0,'normal_cnt'=>0];
 
         return $this->response->setJSON([
             'success'   => true,
             'q'         => $q,
-            'status'    => $status,
             'total'     => (int)$total,
             'perPage'   => (int)$perPage,
             'page'      => (int)$page,
             'pageCount' => (int)ceil(max($total,1)/$perPage),
             'rows'      => $data,
-            'counters'  => [
-                'total'  => (int)$counters['total'],
-                'wait'   => (int)$counters['wait_cnt'],
-                'doing'  => (int)$counters['doing_cnt'],
-                'normal' => (int)$counters['normal_cnt'],
-            ],
+            'stats'     => $this->calcStats(), // <- kartu ikut ter-update
         ]);
     }
 
@@ -136,7 +95,7 @@ class AcUnits extends BaseController
         [$merek,$model] = $this->splitBrandModel($row['tipe_model'] ?? '');
         $sn = $this->extractSn($row['catatan'] ?? null);
 
-        $Rep     = new AcRepairModel();
+        $Rep     = new \App\Models\AcRepairModel();
         $repairs = $Rep->listByAc($id);
 
         return view('Admin/ac_units/show', [
@@ -147,6 +106,7 @@ class AcUnits extends BaseController
             'model'      => $model,
             'sn'         => $sn,
             'repairs'    => $repairs,
+            'photoUrl'   => $this->findPhotoUrl($id),
         ]);
     }
 
@@ -167,10 +127,11 @@ class AcUnits extends BaseController
             'merek'      => $merek,
             'model'      => $model,
             'sn'         => $sn,
+            'photoUrl'   => $this->findPhotoUrl($id),
         ]);
     }
 
-    /* UPDATE (tanpa mengubah kode_qr) */
+    /* UPDATE (tanpa crop; bisa ganti/hapus foto AC) */
     public function update(int $id)
     {
         if ($this->request->getMethod(true) !== 'POST') {
@@ -205,10 +166,27 @@ class AcUnits extends BaseController
             return redirect()->back()->withInput()->with('err','DB error: '.$e->getMessage());
         }
 
+        /* ====== FOTO AC ====== */
+        $dir = FCPATH.'uploads/ac_units/'.$id;
+        $remove = (int)$this->request->getPost('remove_photo') === 1;
+
+        if ($remove) {
+            $this->deletePhotoFiles($dir);
+        }
+
+        $file = $this->request->getFile('foto');
+        if ($file && $file->isValid()) {
+            $ext = strtolower($file->getClientExtension() ?: $file->getExtension() ?: 'jpg');
+            if (!in_array($ext, ['jpg','jpeg','png','webp'], true)) $ext = 'jpg';
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            $this->deletePhotoFiles($dir);
+            $file->move($dir, 'main.'.$ext, true);
+        }
+
         return redirect()->route('admin.ac.show',[$id])->with('ok','Data berhasil diperbarui');
     }
 
-    /* DELETE (hapus relasi + folder foto + file QR) */
+    /* DELETE (hapus anak + folder foto + file QR) */
     public function delete(int $id)
     {
         if ($this->request->getMethod(true) !== 'POST') {
@@ -217,41 +195,31 @@ class AcUnits extends BaseController
 
         $AC  = new AcUnitModel();
         $row = $AC->find($id);
-        if (!$row) {
-            return redirect()->route('admin.ac.index')->with('err','Data tidak ditemukan');
-        }
+        if (!$row) return redirect()->route('admin.ac.index')->with('err','Data tidak ditemukan');
 
         $db = \Config\Database::connect();
         $db->transBegin();
 
         try {
-            // Hapus anak (jika FK tidak cascade)
             (new AcRepairModel())->where('ac_id',$id)->delete();
             (new AcTicketModel())->where('ac_id',$id)->delete();
-
-            // Hapus parent
             $db->table('ac_units')->where('id',$id)->delete();
-
-            // Hapus folder foto perangkat
-            $dirPhotos = FCPATH.'uploads/ac_units/'.$id;
-            $this->rrmdir($dirPhotos);
-
-            // Hapus file QR
-            $token = trim((string)($row['kode_qr'] ?? ''));
-            if ($token !== '') {
-                $qrFile = FCPATH.'uploads/qrcodes/'.$token.'.png';
-                if (is_file($qrFile)) @unlink($qrFile);
-            }
-
             $db->transCommit();
-            return redirect()->route('admin.ac.index')->with('ok','Data & file terkait berhasil dihapus');
         } catch (\Throwable $e) {
             $db->transRollback();
             return redirect()->route('admin.ac.show',[$id])->with('err','Gagal hapus: '.$e->getMessage());
         }
+
+        // bersihkan file
+        $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
+        if (!empty($row['kode_qr'])) {
+            @unlink(FCPATH.'uploads/qrcodes/'.$row['kode_qr'].'.png');
+        }
+
+        return redirect()->route('admin.ac.index')->with('ok','Data berhasil dihapus');
     }
 
-    /* DOWNLOAD ULANG QR (PNG) – simpan di uploads/qrcodes */
+    /* DOWNLOAD QR */
     public function downloadQr(int $id)
     {
         $AC  = new AcUnitModel();
@@ -266,13 +234,22 @@ class AcUnits extends BaseController
         $diskFile = $dir.'/'.$token.'.png';
 
         if (!is_dir($dir)) @mkdir($dir, 0775, true);
-
         if (!is_file($diskFile)) {
-            // generate dari API publik (online)
-            $api = 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&qzone=2&data='.rawurlencode($dataUrl);
-            $png = @file_get_contents($api);
-            if ($png === false) {
-                return redirect()->route('admin.ac.show', [$id])->with('err','Gagal generate QR.');
+            if (class_exists('\\chillerlan\\QRCode\\QRCode') && class_exists('\\chillerlan\\QRCode\\QROptions')) {
+                $opts = new \chillerlan\QRCode\QROptions([
+                    'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
+                    'eccLevel'   => \chillerlan\QRCode\QRCode::ECC_L,
+                    'scale'      => 8,
+                    'imageBase64'=> false,
+                    'margin'     => 2,
+                ]);
+                $png = (new \chillerlan\QRCode\QRCode($opts))->render($dataUrl);
+            } else {
+                $api = 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&qzone=2&data='.rawurlencode($dataUrl);
+                $png = @file_get_contents($api);
+                if ($png === false) {
+                    return redirect()->route('admin.ac.show', [$id])->with('err','Gagal generate QR.');
+                }
             }
             @file_put_contents($diskFile, $png);
         }
@@ -282,6 +259,37 @@ class AcUnits extends BaseController
     }
 
     /* ===== Helpers ===== */
+
+    /** angka kartu */
+    private function calcStats(): array
+    {
+        $db  = \Config\Database::connect();
+        $row = $db->query("
+            SELECT
+              COUNT(*)                                           AS total,
+              SUM(status_ac = 'MENUNGGU_PERBAIKAN')             AS pending,
+              SUM(status_ac = 'DALAM_PERBAIKAN')                AS progress,
+              SUM(status_ac = 'NORMAL')                         AS normal
+            FROM ac_units
+        ")->getRowArray() ?: [];
+
+        return [
+            'total'    => (int)($row['total']    ?? 0),
+            'pending'  => (int)($row['pending']  ?? 0),
+            'progress' => (int)($row['progress'] ?? 0),
+            'normal'   => (int)($row['normal']   ?? 0),
+        ];
+    }
+
+    private function slugify(string $text): string
+    {
+        $text = function_exists('iconv') ? iconv('UTF-8', 'ASCII//TRANSLIT', $text) : $text;
+        $text = preg_replace('~[^\\pL\\d]+~u', '-', $text);
+        $text = trim($text, '-');
+        $text = preg_replace('~[^-\\w]+~', '', $text);
+        return strtolower($text ?: 'qr');
+    }
+
     private function splitBrandModel(string $tipe): array
     {
         $t = trim($tipe);
@@ -312,24 +320,27 @@ class AcUnits extends BaseController
         if (preg_match('/\bSN\s*=\s*[^\r\n]+/i',$cat)) return preg_replace('/\bSN\s*=\s*[^\r\n]+/i','SN='.$sn,$cat);
         return rtrim($cat)."\nSN=".$sn;
     }
-    private function slugify(string $text): string
+
+    /* FOTO helpers */
+    private function findPhotoUrl(int $id): ?string
     {
-        $text = function_exists('iconv') ? @iconv('UTF-8', 'ASCII//TRANSLIT', $text) : $text;
-        $text = preg_replace('~[^\\pL\\d]+~u', '-', $text);
-        $text = trim($text, '-');
-        $text = preg_replace('~[^-\\w]+~', '', $text);
-        $text = strtolower($text);
-        return $text ?: 'qr';
-    }
-    private function rrmdir(string $dir): void
-    {
-        if (!is_dir($dir)) return;
-        $it = new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS);
-        $fl = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ($fl as $f) {
-            $p = $f->getRealPath();
-            if ($f->isDir()) { @rmdir($p); } else { @unlink($p); }
+        $dir = FCPATH.'uploads/ac_units/'.$id;
+        foreach (['jpg','jpeg','png','webp'] as $x) {
+            $p = $dir.'/main.'.$x;
+            if (is_file($p)) return base_url('uploads/ac_units/'.$id.'/main.'.$x).'?v='.filemtime($p);
         }
-        @rmdir($dir);
+        return null;
+    }
+    private function deletePhotoFiles(string $dir): void
+    {
+        foreach (['jpg','jpeg','png','webp'] as $x) { @unlink($dir.'/main.'.$x); }
+    }
+    private function rrmdir(string $path): void
+    {
+        if (!is_dir($path)) return;
+        $it = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
+        $files = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($files as $f) { $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); }
+        @rmdir($path);
     }
 }

@@ -1,4 +1,4 @@
-// public/assets/js-admin/ac-units.js  (v1.2.1)
+// public/assets/js-admin/ac-units.js  (v1.3.0)
 (function(){
   'use strict';
 
@@ -22,17 +22,26 @@
     pageCount: 1
   };
 
-  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
-  function pageRange(cur,total,width){ const h=Math.floor(width/2); let s=Math.max(1,cur-h); let e=Math.min(total,s+width-1); s=Math.max(1,e-width+1); const arr=[]; for(let i=s;i<=e;i++) arr.push(i); return arr; }
+  const escapeHtml = (s)=> (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const debounce   = (fn,ms)=>{ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; };
+  const pageRange  = (cur,total,width)=>{ const h=Math.floor(width/2); let s=Math.max(1,cur-h); let e=Math.min(total,s+width-1); s=Math.max(1,e-width+1); const arr=[]; for(let i=s;i<=e;i++) arr.push(i); return arr; };
 
-  function setInfoLoading(){ if(infoEl) infoEl.textContent='Memuat…'; }
-  function setInfoCount(rowsLen,total,page,perPage){
+  const setInfoLoading = ()=>{ if(infoEl) infoEl.textContent='Memuat…'; };
+  const setInfoCount   = (rowsLen,total,page,perPage)=>{
     if(!infoEl){return;}
     if(!total){ infoEl.textContent=''; return; }
     const start = rowsLen ? ((page-1)*perPage + 1) : 0;
     const end   = rowsLen ? ((page-1)*perPage + rowsLen) : 0;
     infoEl.textContent = `Menampilkan ${start}–${end} dari ${total}` + (state.q? ' · Urut: terbaru':'');
+  };
+
+  function updateCards(stats){
+    if(!stats) return;
+    const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.textContent = (val ?? 0); };
+    set('statTotal',    stats.total);
+    set('statPending',  stats.pending);
+    set('statProgress', stats.progress);
+    set('statNormal',   stats.normal);
   }
 
   function renderPager(){
@@ -74,7 +83,7 @@
         const res = await Swal.fire({
           icon: 'warning',
           title: 'Hapus data?',
-          html: `AC <b>${escapeHtml(name)}</b> akan dihapus beserta riwayat, foto & QR-nya.`,
+          html: `AC <b>${escapeHtml(name)}</b> akan dihapus beserta riwayat dan file terkait.`,
           showCancelButton: true,
           confirmButtonText: 'Ya, hapus',
           cancelButtonText: 'Batal',
@@ -84,7 +93,7 @@
 
         const form = document.getElementById('deleteForm');
         form.setAttribute('action', url);
-        form.submit(); // reload → flash ok/err ditangani di showFlash()
+        form.submit(); // reload → flash → swal (lihat showFlash)
       };
     });
   }
@@ -108,6 +117,9 @@
       if(mySeq !== reqSeq) return;
       if(!res.ok || !json.success) throw new Error(json.message || 'Gagal memuat');
 
+      // update kartu
+      updateCards(json.stats);
+
       const rows = json.rows || [];
       const total= parseInt(json.total ?? 0,10);
       state.pageCount = parseInt(json.pageCount ?? 1,10) || 1;
@@ -123,17 +135,17 @@
       tbody.innerHTML = rows.length ? rows.map(r=>`
         <tr>
           <td>${r.id}</td>
-          <td><code>${escapeHtml(r.kode_qr)}</code></td>
-          <td>${escapeHtml(r.nomor_unik)}</td>
-          <td>${escapeHtml(r.tipe_model)}</td>
-          <td>${escapeHtml(r.lokasi)}</td>
+          <td><code>${escapeHtml(r.kode_qr || '')}</code></td>
+          <td>${escapeHtml(r.nomor_unik || '')}</td>
+          <td>${escapeHtml(r.tipe_model || '')}</td>
+          <td>${escapeHtml(r.lokasi || '')}</td>
           <td>${badge(r.status_ac)}</td>
           <td class="text-end">
             <div class="btn-group btn-group-sm">
               <a class="btn btn-outline-secondary" href="${r.show_url}" title="Detail"><i class="bi bi-eye"></i></a>
               <a class="btn btn-outline-primary"   href="${r.edit_url}" title="Edit"><i class="bi bi-pencil"></i></a>
               <a class="btn btn-outline-success"   href="${r.dl_qr_url}" title="Unduh QR"><i class="bi bi-download"></i></a>
-              <button class="btn btn-outline-danger btn-delete" data-url="${r.del_url}" data-name="${escapeHtml(r.nomor_unik)}" title="Hapus"><i class="bi bi-trash"></i></button>
+              <button class="btn btn-outline-danger btn-delete" data-url="${r.del_url}" data-name="${escapeHtml(r.nomor_unik || '')}" title="Hapus"><i class="bi bi-trash"></i></button>
             </div>
           </td>
         </tr>
@@ -142,19 +154,6 @@
       renderPager();
       bindDelete();
       setInfoCount(rows.length, total, state.page, state.perPage);
-
-      // UPDATE CARDS
-      if (json.counters) {
-        const c = json.counters;
-        const elTotal  = document.getElementById('statTotal');
-        const elWait   = document.getElementById('statWait');
-        const elDoing  = document.getElementById('statDoing');
-        const elNormal = document.getElementById('statNormal');
-        if (elTotal)  elTotal.textContent  = c.total ?? 0;
-        if (elWait)   elWait.textContent   = c.wait ?? 0;
-        if (elDoing)  elDoing.textContent  = c.doing ?? 0;
-        if (elNormal) elNormal.textContent = c.normal ?? 0;
-      }
 
     }catch(err){
       if(err.name==='AbortError') return;
@@ -167,32 +166,20 @@
   stSel  && stSel.addEventListener('change', ()=>{ state.status=stSel.value||''; state.page=1; fetchList(); });
   perSel && perSel.addEventListener('change', ()=>{ state.perPage=parseInt(perSel.value||'10',10); state.page=1; fetchList(); });
 
-  // Init
-  bindDelete();
-  if(infoEl) infoEl.textContent='';
-
-  // SweetAlert flash (tambah/edit/hapus)
+  // Flash → Swal
   (function showFlash(){
     const ok  = window.APP?.flash?.ok  || '';
     const err = window.APP?.flash?.err || '';
     if (ok) {
-      Swal.fire({
-        icon: 'success',
-        title: 'Berhasil',
-        text: ok,
-        timer: 1600,
-        showConfirmButton: false,
-        timerProgressBar: true
-      });
+      Swal.fire({ icon:'success', title:'Berhasil', text:ok, timer:1600, showConfirmButton:false, timerProgressBar:true });
     } else if (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Gagal',
-        text: err
-      });
+      Swal.fire({ icon:'error', title:'Gagal', text:err });
     }
   })();
 
-  // Optional: aktifkan agar pager & tabel full via AJAX dari awal
-  // fetchList();
+  // Init
+  bindDelete();
+  if(infoEl) infoEl.textContent='';
+  // Ambil data awal (sekalian segarkan angka kartu)
+  fetchList();
 })();
