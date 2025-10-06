@@ -2,22 +2,184 @@
 namespace App\Controllers\Teknisi;
 
 use App\Controllers\BaseController;
+use App\Models\AcUnitModel;
+use App\Models\AcTicketModel;
+use App\Models\AcRepairModel;
 
 class Page extends BaseController
 {
+    // GET /ac/{token}
     public function detailByToken(string $token)
     {
+        $token = trim($token);
+        $AC = new AcUnitModel();
+
+        // Cari berdasarkan kode_qr (token URL), fallback nomor_unik
+        $ac = $AC->where('kode_qr', $token)->first();
+        if (!$ac) $ac = $AC->where('nomor_unik', $token)->first();
+
+        $wantsJson = ($this->request->getGet('format') === 'json') || $this->request->isAJAX();
+        if ($wantsJson) {
+            if (!$ac) return $this->response->setJSON(['ok'=>false,'error'=>'Perangkat tidak ditemukan'])->setStatusCode(404);
+
+            // foto utama: uploads/ac_units/{id}/main.*
+            $fotoUrl = null;
+            $dir = FCPATH.'uploads/ac_units/'.$ac['id'].'/';
+            if (is_dir($dir)) {
+                foreach (['jpg','jpeg','png','webp'] as $ext) {
+                    $f = $dir.'main.'.$ext; if (is_file($f)) { $fotoUrl = site_url('uploads/ac_units/'.$ac['id'].'/main.'.$ext); break; }
+                }
+            }
+
+            // tiket aktif untuk AC ini (bukan SELESAI / DITOLAK_ADMIN)
+            $T = new AcTicketModel();
+            $ticket = $T->where('ac_id', $ac['id'])
+                        ->whereNotIn('status_tiket', ['SELESAI','DITOLAK_ADMIN'])
+                        ->orderBy('updated_at','desc')->orderBy('created_at','desc')
+                        ->first();
+
+            return $this->response->setJSON([
+                'ok' => true,
+                'ac' => [
+                    'id'            => (int)$ac['id'],
+                    'nomor_unik'    => $ac['nomor_unik'] ?? null,
+                    'kode_qr'       => $ac['kode_qr'] ?? null,
+                    'tipe_model'    => $ac['tipe_model'] ?? null,
+                    'kapasitas_btu' => $ac['kapasitas_btu'] ?? null,
+                    'lokasi'        => $ac['lokasi'] ?? null,
+                    'status_ac'     => $ac['status_ac'] ?? 'NORMAL',
+                    'catatan'       => $ac['catatan'] ?? null,
+                    'foto_url'      => $fotoUrl,
+                ],
+                'ticket_id' => $ticket['id'] ?? null,
+            ]);
+        }
+
         return view('teknisi/ac_detail', [
-            'title' => 'Detail AC • Teknisi',
+            'title' => $ac['nomor_unik'] ?? 'Perangkat',
             'token' => $token,
         ]);
     }
 
+    // GET /ac/{token}/perbaikan → VIEW: teknisi/perbaikan.php
     public function perbaikanByToken(string $token)
     {
+        $token = trim($token);
         return view('teknisi/perbaikan', [
-            'title' => 'Laporan Perbaikan • Teknisi',
+            'title' => 'Laporan Perbaikan',
             'token' => $token,
         ]);
+    }
+
+    // POST /ac/{token}/perbaikan → simpan laporan (wajib teknisi_nama & hasil_perbaikan) + fotoAfter (opsional)
+    public function submitPerbaikanByToken(string $token)
+    {
+        if ($this->request->getMethod(true) !== 'POST') {
+            return $this->response->setJSON(['error'=>'Method Not Allowed'])->setStatusCode(405);
+        }
+
+        $token = trim($token);
+        $AC = new AcUnitModel();
+        $ac = $AC->where('kode_qr', $token)->first();
+        if (!$ac) return $this->response->setJSON(['error'=>'Perangkat tidak ditemukan'])->setStatusCode(404);
+
+        // Validasi server-side (sesuai NOT NULL di ac_repairs)
+        $rules = [
+            'teknisi_nama'     => 'required|string|min_length[3]|max_length[120]',
+            'tindakan'         => 'required|string|min_length[3]',
+            'hasil_perbaikan'  => 'required|string|min_length[3]',
+            'biaya'            => 'permit_empty|decimal',
+            'ticket_id'        => 'permit_empty|integer',
+        ];
+        if (! $this->validate($rules)) {
+            return $this->response->setStatusCode(422)->setJSON([
+                'error' => implode(' ', $this->validator->getErrors())
+            ]);
+        }
+
+        $teknisiNama    = trim((string)$this->request->getPost('teknisi_nama'));
+        $tindakan       = trim((string)$this->request->getPost('tindakan'));
+        $hasilPerbaikan = trim((string)$this->request->getPost('hasil_perbaikan'));
+        $part           = trim((string)$this->request->getPost('part'));
+        $biayaRaw       = $this->request->getPost('biaya');
+        $biaya          = ($biayaRaw !== null && $biayaRaw !== '') ? (float)$biayaRaw : null;
+
+        // Tentukan ticket_id: pakai dari POST jika valid, else ambil tiket aktif
+        $T = new AcTicketModel();
+        $ticket = null;
+        $ticketIdPost = (int)($this->request->getPost('ticket_id') ?? 0);
+        if ($ticketIdPost > 0) {
+            $ticket = $T->where('id',$ticketIdPost)->where('ac_id',$ac['id'])->first();
+        }
+        if (!$ticket) {
+            $ticket = $T->where('ac_id', $ac['id'])
+                        ->whereNotIn('status_tiket', ['SELESAI','DITOLAK_ADMIN'])
+                        ->orderBy('updated_at','desc')->orderBy('created_at','desc')
+                        ->first();
+        }
+        if (!$ticket) {
+            return $this->response->setStatusCode(422)->setJSON(['error'=>'Tidak ada tiket aktif. Buat/approve tiket dulu.']);
+        }
+
+        // Upload foto sesudah (opsional)
+        $afterPath = null;
+        $foto = $this->request->getFile('fotoAfter');
+        if ($foto && $foto->isValid()) {
+            $dir = FCPATH.'uploads/ac_units/'.$ac['id'].'/repairs';
+            if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+                return $this->response->setJSON(['error'=>'Gagal buat folder upload'])->setStatusCode(500);
+            }
+            $ext = strtolower($foto->getClientExtension() ?: $foto->getExtension() ?: $foto->guessExtension() ?: 'jpg');
+            if (!in_array($ext, ['jpg','jpeg','png','webp'], true)) $ext = 'jpg';
+            $fname = 'after_'.date('Ymd_His').'.'.$ext;
+            $foto->move($dir, $fname, true);
+            $afterPath = '/uploads/ac_units/'.$ac['id'].'/repairs/'.$fname;
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+        try {
+            // Insert ac_repairs
+            (new AcRepairModel())->insert([
+                'ticket_id'        => (int)$ticket['id'],
+                'ac_id'            => (int)$ac['id'],
+                'teknisi_nama'     => $teknisiNama,
+                'tindakan'         => $tindakan,
+                'hasil_perbaikan'  => $hasilPerbaikan,
+                'foto_sesudah'     => $afterPath ? site_url(ltrim($afterPath,'/')) : null,
+                'biaya'            => $biaya,
+                'submitted_at'     => date('Y-m-d H:i:s'),
+                'verifikasi_status'=> 'MENUNGGU_ADMIN',
+            ]);
+
+            // Update tiket → MENUNGGU_VERIFIKASI (menunggu admin)
+            $T->update($ticket['id'], [
+                'status_tiket' => 'MENUNGGU_VERIFIKASI',
+                'updated_at'   => date('Y-m-d H:i:s'),
+            ]);
+
+            // Update status AC jadi NORMAL + append catatan ringkas
+            $append = "Perbaikan: ".$tindakan;
+            if ($part !== '')  $append .= " | Part: ".$part;
+            if ($biaya !== null && $biaya > 0) $append .= " | Biaya: ".$biaya;
+            $newNote = trim(($ac['catatan'] ?? '')."\n".$append);
+            $AC->update($ac['id'], [
+                'status_ac' => 'NORMAL',
+                'catatan'   => $newNote,
+            ]);
+
+            $db->transComplete();
+            if (! $db->transStatus()) throw new \RuntimeException('Transaksi gagal');
+
+            return $this->response->setJSON([
+                'ok'        => true,
+                'message'   => 'Perbaikan disimpan & tiket menunggu verifikasi admin.',
+                'fotoAfter' => $afterPath ? site_url(ltrim($afterPath,'/')) : null,
+                'redirect'  => site_url('ac/'.$token),
+            ]);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return $this->response->setStatusCode(500)->setJSON(['error'=>$e->getMessage()]);
+        }
     }
 }
