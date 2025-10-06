@@ -1,98 +1,106 @@
 (function(){
   const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  const statusClass = s => ({normal:'success', rusak:'danger', maintenance:'warning', diproses:'info'}[(s||'').toLowerCase()] || 'secondary');
 
-  const base  = document.body.dataset.base || '';
-  const token = window.Tech?.token || '';
-  const loadAC = window.Tech?.loadAC;
-
-  const KEY='repairs';
-  const db = {
-    all(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch{ return {}; } },
-    get(t){ return this.all()[t] || null; },
-    save(map){ localStorage.setItem(KEY, JSON.stringify(map)); },
-    upsert(t, patch){
-      const map=this.all();
-      const cur= map[t] || { token:t, status:'diproses', timeline:[] };
-      map[t] = { ...cur, ...patch };
-      this.save(map);
-      return map[t];
+  function badgeClass(status){
+    switch ((status||'').toUpperCase()) {
+      case 'NORMAL': return 'text-bg-success';
+      case 'MENUNGGU_PERBAIKAN': return 'text-bg-warning';
+      case 'DALAM_PERBAIKAN': return 'text-bg-primary';
+      default: return 'text-bg-secondary';
     }
-  };
-
-  // Online badge
-  const netBadge = document.getElementById('netBadge');
-  function updateNet(){
-    if (!netBadge) return;
-    if (navigator.onLine){ netBadge.textContent='Online'; netBadge.className='badge bg-success'; }
-    else { netBadge.textContent='Offline'; netBadge.className='badge bg-secondary'; }
-    netBadge.classList.remove('d-none');
   }
-  window.addEventListener('online',updateNet); window.addEventListener('offline',updateNet); updateNet();
+  function splitTipeModel(s){
+    if (!s) return {merek:'—', model:'—'};
+    const p = s.trim().split(/\s+/);
+    if (p.length === 1) return {merek:p[0], model:'—'};
+    return {merek:p[0], model:p.slice(1).join(' ')};
+  }
+  function absUrl(path){
+    if (!path) return null;
+    try { if(/^https?:\/\//i.test(path)) return path; if (path.startsWith('/')) return location.origin+path; return location.origin+'/'+path.replace(/^\/+/,''); } catch { return path; }
+  }
+  async function fetchDetail(token){
+    const url = `${location.origin}/ac/${encodeURIComponent(token)}?format=json`;
+    const res = await fetch(url, { headers:{'X-Requested-With':'XMLHttpRequest'} });
+    if (!res.ok) throw new Error(await res.text() || `Gagal memuat (${res.status})`);
+    const js = await res.json();
+    if (!js || !js.ok || !js.ac) throw new Error('Payload tidak valid');
+    return js;
+  }
+  function renderAC(ac, tickets){
+    setText('namaAlat', ac.nomor_unik || ac.kode_qr || 'Perangkat');
+    setText('kodeQr', ac.kode_qr || '—');
 
-  document.getElementById('btnRefresh')?.addEventListener('click', ()=>location.reload());
+    const tm = splitTipeModel(ac.tipe_model);
+    setText('merek', tm.merek || '—');
+    setText('modelSn', [tm.model||null, ac.catatan||null].filter(Boolean).join(' / ') || '—');
+    setText('lokasi', ac.lokasi || '—');
 
-  // Load data AC
-  (async ()=>{
-    const d = token ? await loadAC(token) : null;
-    if (!d){
-      setText('namaAlat','AC'); setText('kodeQr', token || '—');
-      document.getElementById('laporanList').innerHTML =
-        `<div class="list-group-item text-center text-muted py-4">Data tidak ditemukan.</div>`;
-      document.getElementById('photoSkeleton')?.remove();
-      return;
-    }
-    setText('namaAlat', d.nama || 'AC');
-    setText('kodeQr', d.kode || token);
-    setText('merek', d.merek || '—');
-    setText('modelSn', `${d.model || '—'}${d.serial_no ? ' / ' + d.serial_no : ''}`);
-    setText('lokasi', d.lokasi || '—');
-
-    const st = d.status || 'normal';
     const badge = document.getElementById('badgeStatus');
-    badge.textContent = st.charAt(0).toUpperCase()+st.slice(1);
-    badge.className = `badge rounded-pill px-3 py-2 text-bg-${statusClass(st)}`;
+    if (badge){ badge.className = `badge rounded-pill px-3 py-2 ${badgeClass(ac.status_ac)}`; badge.textContent = (ac.status_ac || 'NORMAL'); }
 
-    const url = d.foto || '';
-    const photo = document.getElementById('acPhoto');
-    const skel  = document.getElementById('photoSkeleton');
+    const img = document.getElementById('acPhoto');
+    const skeleton = document.getElementById('photoSkeleton');
     const btnZoom = document.getElementById('btnZoom');
-    const modalPhoto = document.getElementById('modalPhoto');
-    if (url){
-      photo.src = url;
-      photo.onload = ()=>{ photo.classList.remove('d-none'); skel?.remove(); btnZoom.classList.remove('d-none'); };
-      photo.onerror = ()=> skel?.remove();
-      btnZoom.addEventListener('click', ()=>{
-        modalPhoto.src = url;
-        new bootstrap.Modal(document.getElementById('photoModal')).show();
+    const modalImg = document.getElementById('modalPhoto');
+
+    if (ac.foto_url){
+      const src = absUrl(ac.foto_url);
+      img.onload = () => { img.classList.remove('d-none'); skeleton?.classList.add('d-none'); btnZoom?.classList.remove('d-none'); };
+      img.onerror = () => { skeleton?.classList.add('d-none'); };
+      img.src = src;
+      if (modalImg) modalImg.src = src;
+      btnZoom?.addEventListener('click', ()=>{
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal){
+          const m = new bootstrap.Modal(document.getElementById('photoModal')); m.show();
+        } else { window.open(src, '_blank'); }
       });
-    } else skel?.remove();
+    } else {
+      img.classList.add('d-none');
+      skeleton?.classList.add('d-none');
+      btnZoom?.classList.add('d-none');
+    }
+
+    const btnPerbaikan = document.getElementById('btnPerbaikan');
+    if (btnPerbaikan){
+      const tok = ac.kode_qr || ac.nomor_unik;
+      btnPerbaikan.href = `${location.origin}/ac/${encodeURIComponent(tok)}/perbaikan`;
+    }
 
     const list = document.getElementById('laporanList');
-    list.innerHTML = d.laporan?.length
-      ? d.laporan.map(l=>`<div class="list-group-item">
-          <div class="d-flex align-items-start justify-content-between gap-3">
-            <div class="flex-grow-1">
-              <div class="fw-semibold">${l.judul || 'Laporan'}</div>
-              <div class="text-muted small">${l.deskripsi || ''}</div>
-              <div class="text-muted small mt-1"><i class="bi bi-clock me-1"></i>${l.created_at || ''}</div>
-            </div>
-            <span class="badge text-bg-secondary">${l.status || '-'}</span>
-          </div>
-        </div>`).join('')
-      : `<div class="list-group-item text-center text-muted py-4">Tidak ada laporan aktif dari user.</div>`;
-  })();
+    if (list){
+      list.innerHTML = '';
+      if (!tickets || tickets.length === 0){
+        list.innerHTML = '<div class="list-group-item text-center text-muted py-4">Tidak ada laporan aktif.</div>';
+      } else {
+        tickets.forEach(t=>{
+          const item = document.createElement('div');
+          item.className = 'list-group-item';
+          item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">${(t.judul||'Laporan')}</div>
+                <div class="small text-muted">${(t.deskripsi||'')}</div>
+              </div>
+              <span class="badge ${badgeClass(t.status||'') }">${(t.status||'AKTIF')}</span>
+            </div>`;
+          list.appendChild(item);
+        });
+      }
+    }
+  }
 
-  // CTA: Buat Laporan Perbaikan
-  document.getElementById('btnPerbaikan')?.addEventListener('click', (e)=>{
-    e.preventDefault();
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    const holder = document.getElementById('__page');
+    let token = holder?.dataset?.token || '';
+    if (!token){
+      const seg = (location.pathname||'/').split('/').filter(Boolean);
+      const idx = seg.indexOf('ac'); if (idx>=0 && seg[idx+1]) token = decodeURIComponent(seg[idx+1]);
+    }
     if (!token) return;
-    const cur = db.get(token);
-    db.upsert(token, {
-      status: 'diproses',
-      started_at: cur?.started_at || Date.now(),
-      timeline: [ ...(cur?.timeline||[]), { at: Date.now(), type:'start', by:'teknisi' } ]
-    });
-    location.href = `${base}/ac/${encodeURIComponent(token)}/perbaikan`;
+
+    try { const data = await fetchDetail(token); renderAC(data.ac, data.tickets || []); }
+    catch (err){ console.error(err); document.getElementById('photoSkeleton')?.classList.add('d-none');
+      const list = document.getElementById('laporanList'); if (list) list.innerHTML = '<div class="list-group-item text-danger">Gagal memuat data. Coba scan ulang.</div>'; }
   });
 })();

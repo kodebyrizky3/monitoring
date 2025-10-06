@@ -1,77 +1,79 @@
-(function(){
-  const { token, loadAC } = window.Tech || {};
-  const base = document.body.dataset.base || '';
+(function () {
+  const page = document.getElementById('__page');
+  const token = page?.dataset?.token || '';
+  const baseUrl = `/ac/${encodeURIComponent(token)}`;
 
-  // Local storage mini-DB utk demo
-  const KEY='repairs';
-  const db = {
-    all(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch{ return {}; } },
-    get(t){ return this.all()[t] || null; },
-    save(map){ localStorage.setItem(KEY, JSON.stringify(map)); },
-    upsert(t, patch){
-      const map=this.all();
-      const cur= map[t] || { token:t, status:'diproses', timeline:[] };
-      map[t] = { ...cur, ...patch };
-      this.save(map);
-      return map[t];
-    }
-  };
-
-  // Prefill info AC
-  (async ()=>{
-    const d = token ? await loadAC(token) : null;
-    if (d){
-      document.getElementById('acName').textContent = d.nama || 'AC';
-      document.getElementById('acKode').textContent = d.kode || token;
-      document.getElementById('acLokasi').textContent = d.lokasi || '—';
-      if (d.foto){ const th=document.getElementById('acThumb'); th.src=d.foto; th.classList.remove('d-none'); }
-    } else {
-      document.getElementById('acName').textContent = 'AC';
-      document.getElementById('acKode').textContent = token || '—';
-    }
-  })();
-
-  // Pastikan ada draft 'diproses' (kalau user masuk langsung via URL)
-  const cur = db.get(token);
-  if (!cur) db.upsert(token, { status:'diproses', started_at: Date.now(), timeline:[{at:Date.now(),type:'start',by:'teknisi'}] });
-
-  // Preview foto after
-  const file = document.getElementById('fotoAfter');
-  const box  = document.getElementById('afterPreviewBox');
-  const img  = document.getElementById('afterPreview');
-  file?.addEventListener('change', ()=>{
-    const f = file.files?.[0]; if (!f) { box.classList.add('d-none'); img.removeAttribute('src'); return; }
-    const r=new FileReader(); r.onload=()=>{ img.src=r.result; box.classList.remove('d-none'); }; r.readAsDataURL(f);
-  });
-
-  // Submit → tandai selesai
   const form = document.getElementById('formPerbaikan');
-  const done = document.getElementById('alertDone');
-  form.addEventListener('submit', (e)=>{
-    e.preventDefault();
-    if (!form.checkValidity()){ form.classList.add('was-validated'); return; }
-    const fd = new FormData(form);
-    const payload = {
-      tindakan: (fd.get('tindakan')||'').toString(),
-      part: (fd.get('part')||'').toString(),
-      biaya: Number(fd.get('biaya')||0)||0,
-      foto_after: img?.src || null
-    };
-    db.upsert(token, {
-      status: 'selesai',
-      progress: { ...payload, finished_at: Date.now() },
-      timeline: [ ...(db.get(token)?.timeline||[]), { at: Date.now(), type:'finish', by:'teknisi' } ]
-    });
+  const fotoAfter = document.getElementById('fotoAfter');
+  const afterPreviewBox = document.getElementById('afterPreviewBox');
+  const afterPreview = document.getElementById('afterPreview');
+  const alertDone = document.getElementById('alertDone');
+  const btnBackDetail = document.getElementById('btnBackDetail');
+  const btnSubmit = document.getElementById('btnSubmit');
 
-    done.classList.remove('d-none');
+  const acName = document.getElementById('acName');
+  const acKode = document.getElementById('acKode');
+  const acStatus = document.getElementById('acStatus');
+  const acLokasi = document.getElementById('acLokasi');
+  const acThumb = document.getElementById('acThumb');
+  const inputTicket = document.getElementById('ticket_id');
 
-    // Opsional: scroll ke alert
-    setTimeout(()=> done.scrollIntoView({behavior:'smooth'}), 10);
+  function toastErr(msg){ alert(msg || 'Terjadi kesalahan.'); }
+  function setLoading(on){
+    if (on){ btnSubmit.disabled = true; btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...'; }
+    else   { btnSubmit.disabled = false; btnSubmit.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Kirim &amp; Tandai Selesai'; }
+  }
+
+  async function init(){
+    try {
+      const res = await fetch(`${baseUrl}?format=json`, { headers:{'Accept':'application/json'} });
+      if (!res.ok) throw new Error(`Init gagal (${res.status})`);
+      const j = await res.json();
+      if (!j.ok) throw new Error('Init gagal.');
+
+      const ac = j.ac;
+      acName.textContent   = ac.nomor_unik || 'AC';
+      acKode.textContent   = ac.tipe_model || '—';
+      acStatus.textContent = ac.status_ac || '—';
+      acLokasi.textContent = ac.lokasi || '—';
+      if (ac.foto_url){ acThumb.src = ac.foto_url; acThumb.classList.remove('d-none'); }
+
+      inputTicket.value = j.ticket_id || '';
+      btnBackDetail.href = baseUrl;
+    } catch (e) {
+      console.error(e); toastErr(e.message);
+    }
+  }
+
+  fotoAfter?.addEventListener('change', () => {
+    const f = fotoAfter.files?.[0];
+    if (!f){ afterPreviewBox.classList.add('d-none'); afterPreview.removeAttribute('src'); return; }
+    const r = new FileReader();
+    r.onload = e => { afterPreview.src = e.target.result; afterPreviewBox.classList.remove('d-none'); };
+    r.readAsDataURL(f);
   });
 
-  // Kembali ke detail
-  document.getElementById('btnBackDetail')?.addEventListener('click', (e)=>{
+  form?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    location.href = `${base}/ac/${encodeURIComponent(token)}`;
+    form.classList.add('was-validated');
+    if (!form.checkValidity()) return;
+
+    try {
+      setLoading(true);
+      const fd = new FormData(form);   // csrf_field ikut
+      const res = await fetch(`${baseUrl}/perbaikan`, { method:'POST', body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j.error){ throw new Error(j.error || `Gagal simpan (${res.status})`); }
+
+      alertDone.classList.remove('d-none');
+      Array.from(form.elements).forEach(el => el.setAttribute('disabled','disabled'));
+      if (j.redirect){ location.assign(j.redirect); }
+    } catch (err) {
+      console.error(err); toastErr(err.message);
+    } finally {
+      setLoading(false);
+    }
   });
+
+  init();
 })();
