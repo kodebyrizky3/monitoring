@@ -1,0 +1,30 @@
+/* Ringkas & konsisten dengan dashboard kamu */
+.card-kpi{ border:0; }
+.kpi-title{ font-size:.85rem; opacity:.95; }
+.kpi-val{ font-weight:800; font-size:1.6rem; line-height:1; }
+.bg-pending{ background:#2d6cdf; }
+.bg-proses{ background:#0ea5e9; }
+.bg-sla{ background:#eab308; }
+.bg-done{ background:#22c55e; }
+
+/* Badge severity */
+.badge.sev-low{ background:#e2f6e9; color:#0d7a3a; }
+.badge.sev-med{ background:#fff3cd; color:#a0790a; }
+.badge.sev-high{ background:#fde2e1; color:#b42318; }
+
+/* Badge status */
+.badge.st-pending-acc{ background:#e7efff; color:#1e40af; }
+.badge.st-disetujui{ background:#e6f4ff; color:#075985; }
+.badge.st-proses{ background:#e0f2fe; color:#075985; }
+.badge.st-menunggu-sparepart{ background:#fef3c7; color:#92400e; }
+.badge.st-selesai{ background:#dcfce7; color:#166534; }
+.badge.st-ditolak{ background:#fee2e2; color:#991b1b; }
+
+.table td, .table th{ vertical-align: middle; }
+#tblKendala .link-detail{ text-decoration:none; }
+
+/* Offcanvas detail placeholder */
+#ocDetail .offcanvas-body{ font-size:.95rem; }
+
+/* kecilkan form label */
+.form-label-sm{ font-size:.85rem; margin-bottom:.25rem; }

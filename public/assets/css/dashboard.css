@@ -1,0 +1,28 @@
+/* ===== Dashboard-only CSS ===== */
+
+/* Kartu KPI seragam */
+.card-stat{ border:0; border-radius:.8rem; }
+.card-stat .card-body{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  min-height:110px;               /* tinggi konsisten di semua kartu */
+}
+.card-stat .stat-title{ font-size:.9rem; opacity:.85; margin-bottom:.25rem; }
+.card-stat .stat-value{ font-size:2rem; font-weight:700; line-height:1; }
+.card-stat .stat-sub{ font-size:.9rem; opacity:.85; margin-top:.35rem; }
+.card-stat .stat-icon{ font-size:2.5rem; opacity:.75; align-self:center; }
+
+/* Pastikan teks kontras jika pakai background berwarna */
+.card-stat.bg-primary,
+.card-stat.bg-success,
+.card-stat.bg-warning,
+.card-stat.bg-danger{ color:#fff; }
+
+/* Tabel aktivitas kecil */
+.table-aktivitas thead th{ font-weight:600; }
+.table-aktivitas td,
+.table-aktivitas th{ white-space:nowrap; }
+
+/* (Opsional) Chart area */
+#kendalaChart{ max-height:260px; }

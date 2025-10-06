@@ -1,0 +1,62 @@
+/* ====== Fix sudut card biar halus & konsisten ====== */
+/* Berlaku untuk semua card teknisi (detail & perbaikan) */
+.card {
+  --radius: 16px;                          /* satu sumber kebenaran */
+  --bs-card-border-radius: var(--radius);   /* radius outer Bootstrap */
+  --bs-card-inner-border-radius: var(--radius); /* radius untuk header/footer */
+  border-radius: var(--radius);
+  overflow: hidden;                         /* POTONG isi di tepi, cegah 'patah' */
+}
+
+/* Samakan latar & border header/footer agar tidak tampak garis patah */
+.card > .card-header,
+.card > .card-footer {
+  background-color: var(--bs-body-bg);
+  border-color: var(--bs-border-color);
+}
+
+/* Form Perbaikan: pastikan padding rapi & sudut mulus */
+#formPerbaikan.card {
+  --radius: 16px;
+  border: 1px solid var(--bs-border-color);
+}
+#formPerbaikan .card-header,
+#formPerbaikan .card-body,
+#formPerbaikan .card-footer { padding-left: 1rem; padding-right: 1rem; }
+@media (min-width:576px){
+  #formPerbaikan .card-header,
+  #formPerbaikan .card-body,
+  #formPerbaikan .card-footer { padding-left: 1.25rem; padding-right: 1.25rem; }
+}
+@media (min-width:992px){
+  #formPerbaikan .card-header,
+  #formPerbaikan .card-body,
+  #formPerbaikan .card-footer { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+
+/* ====== Rapikan input/textarea agar tidak 'patah' saat valid/invalid ====== */
+.form-control,
+.form-select,
+textarea.form-control {
+  border-radius: 12px;                      /* sudut konsisten di semua state */
+}
+
+/* Hilangkan ikon ✔/⚠ default Bootstrap yang suka bikin kanan terlihat patah */
+.form-control.is-valid,
+.form-control.is-invalid,
+.form-select.is-valid,
+.form-select.is-invalid {
+  background-image: none !important;
+  padding-right: .75rem !important;
+}
+
+/* Pastikan efek fokus tetap halus */
+.form-control:focus,
+.form-select:focus,
+textarea.form-control:focus {
+  box-shadow: 0 0 0 .15rem rgba(var(--bs-primary-rgb), .15);
+  border-color: var(--bs-primary);
+}
+
+/* Textarea tinggi minimal biar proporsional */
+#formPerbaikan textarea.form-control { min-height: 120px; }
