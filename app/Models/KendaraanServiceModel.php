@@ -8,10 +8,11 @@ class KendaraanServiceModel extends Model
     protected $table            = 'kendaraan_services';
     protected $primaryKey       = 'id';
     protected $returnType       = 'array';
-    public    $useTimestamps    = false; // tabel ini tidak pakai created_at by default
+    protected $useTimestamps    = false;
 
     protected $allowedFields = [
-        'kendaraan_id','pengaju_id','bengkel_nama','jenis_servis','keluhan','tindakan',
-        'masuk_at','keluar_at','biaya','lampiran','status_servis'
+        'kendaraan_id','source_ticket_id','pengaju_id','bengkel_nama','jenis_servis',
+        'keluhan','tindakan','masuk_at','keluar_at','biaya','lampiran','status_servis',
+        'created_at','updated_at'
     ];
 }

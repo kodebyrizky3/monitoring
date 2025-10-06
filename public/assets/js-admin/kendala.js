@@ -1,3 +1,4 @@
+// public/assets/js-admin/kendala.js
 (function(){
   'use strict';
 
@@ -23,6 +24,7 @@
   let inflightCtrl = null;
   let csrf = { name: window.KENDALA.csrfName, value: window.KENDALA.csrfValue };
   let detailCtx = { type:null, id:null }; // 'ticket' | 'service'
+  let busy = false;
 
   // ===== utils
   function setInfo(t){ if (infoEl) infoEl.textContent = t || ''; }
@@ -64,24 +66,43 @@
     return `<span class="badge bg-${cls}">${escapeHtml(s||'-')}</span>`;
   }
 
-  async function postJSON(url, payload={}){
+  // helper SweetAlert
+  async function confirmSwal({title='Yakin?', text='Lanjutkan proses ini?', icon='question', confirmText='Ya', cancelText='Batal'} = {}){
+    const r = await Swal.fire({
+      icon, title, text,
+      showCancelButton: true,
+      confirmButtonText: confirmText,
+      cancelButtonText: cancelText,
+      reverseButtons: true
+    });
+    return r.isConfirmed;
+  }
+  function alertSuccess(text, title='Berhasil'){ return Swal.fire({icon:'success', title, text, timer:1500, showConfirmButton:false}); }
+  function alertError(text, title='Gagal'){ return Swal.fire({icon:'error', title, text: String(text||'Terjadi kesalahan')}); }
+
+  async function postJSON(url, payload = {}) {
     const body = new URLSearchParams();
-    for (const [k,v] of Object.entries(payload)) body.append(k, v);
-    body.append(csrf.name, csrf.value);
+    for (const [k, v] of Object.entries(payload)) body.append(k, v);
+    if (csrf?.name && csrf?.value) body.append(csrf.name, csrf.value);
 
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Accept':'application/json' },
+      credentials: 'same-origin', // kirim cookie sesi
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+      },
       body
     });
-    const json = await res.json().catch(()=>({success:false,message:'Respon bukan JSON'}));
+
+    const json = await res.json().catch(() => ({ success:false, message:'Respon bukan JSON' }));
     // refresh CSRF bila server kirim balik
     if (json && json.csrf) {
       csrf.value = json.csrf;
       const metaVal = document.querySelector('meta[name="csrf-token-value"]');
       if (metaVal) metaVal.setAttribute('content', csrf.value);
     }
-    if (!res.ok || !json.success) throw new Error(json.message || ('HTTP '+res.status));
+    if (!res.ok || !json.success) throw new Error(json.message || ('HTTP ' + res.status));
     return json;
   }
 
@@ -112,6 +133,8 @@
       renderRows([]);
       renderPager(1, 1);
       setInfo('Gagal memuat: ' + (err.message || 'Unknown error'));
+      // tampilkan popup supaya jelas
+      alertError(err.message || 'Gagal memuat data');
     }
   }
 
@@ -194,6 +217,7 @@
     } catch (err) {
       console.error(err);
       setInfo('Gagal memuat detail: ' + (err.message || 'Unknown error'));
+      alertError(err.message || 'Gagal memuat detail');
     }
   }
 
@@ -251,31 +275,55 @@
     btnReject.disabled  = !canAct;
   }
 
+  // Event tombol di modal (pakai SweetAlert confirm)
   btnApprove?.addEventListener('click', async () => {
     if (!detailCtx.id) return;
-    if (!confirm('Setujui laporan ini?')) return;
+    const ok = await confirmSwal({ title:'Setujui laporan ini?', text:'Status akan menjadi DISETUJUI' });
+    if (!ok) return;
     await doAction(detailCtx.type, 'approve', detailCtx.id);
-    fetchList();
-    bsModal?.hide();
   });
   btnReject?.addEventListener('click', async () => {
     if (!detailCtx.id) return;
-    if (!confirm('Tolak laporan ini?')) return;
+    const ok = await confirmSwal({ title:'Tolak laporan ini?', text:'Status akan menjadi DITOLAK', icon:'warning', confirmText:'Tolak' });
+    if (!ok) return;
     await doAction(detailCtx.type, 'reject', detailCtx.id);
-    fetchList();
-    bsModal?.hide();
   });
 
+  // ===== HANYA SATU doAction (final) =====
   async function doAction(type, act, id){
-    let url;
-    if (act === 'approve') {
-      url = (type === 'service') ? window.KENDALA.approveServiceUrl(id) : window.KENDALA.approveTicketUrl(id);
-    } else {
-      url = (type === 'service') ? window.KENDALA.rejectServiceUrl(id)  : window.KENDALA.rejectTicketUrl(id);
+    if (busy) return;
+    busy = true;
+    try {
+      btnApprove?.setAttribute('disabled', 'disabled');
+      btnReject?.setAttribute('disabled', 'disabled');
+
+      let url;
+      if (act === 'approve') {
+        url = (type === 'service')
+          ? window.KENDALA.approveServiceUrl(id)
+          : window.KENDALA.approveTicketUrl(id);
+      } else {
+        url = (type === 'service')
+          ? window.KENDALA.rejectServiceUrl(id)
+          : window.KENDALA.rejectTicketUrl(id);
+      }
+
+      setInfo('Memproses…');
+      await postJSON(url, {});          // POST + CSRF + session cookie
+      setInfo('Berhasil diperbarui.');
+
+      await fetchList();                 // refresh tabel
+      bsModal?.hide();                   // tutup modal
+      await alertSuccess('Data berhasil diperbarui');
+    } catch (e) {
+      console.error(e);
+      setInfo('Gagal memperbarui');
+      await alertError(e.message || 'Gagal memperbarui');
+    } finally {
+      busy = false;
+      btnApprove?.removeAttribute('disabled');
+      btnReject?.removeAttribute('disabled');
     }
-    setInfo('Memproses…');
-    await postJSON(url, {}); // POST + CSRF
-    setInfo('Berhasil diperbarui.');
   }
 
   // ===== events & init
