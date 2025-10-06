@@ -66,8 +66,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get('notifications/latest', 'Admin\Notifications::latest', ['as' => 'admin.notif.latest']);
         $routes->get('notifications/stream', 'Admin\Notifications::stream', ['as' => 'admin.notif.stream']);
 
-        // Ringkas lama
-        $routes->get('data_kendala', 'Admin\Data_kendala::data_kendala', ['as' => 'admin.data_kendala']);
+        // ===== Alias lama: arahkan ke Kendala (bukan Data_kendala) =====
+        // Pakai index() dari Admin\Kendala:
+        $routes->get('data_kendala', 'Admin\Kendala::index', ['as' => 'admin.data_kendala']);
+        // (Kalau mau, bisa juga diarahkan ke route grup baru:)
+        // $routes->get('data_kendala', static fn() => redirect()->route('admin.kendala.index'));
 
         // =========================
         // ADMIN: Data Alat → AC
@@ -122,7 +125,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get   ('kendaraan/search',        'Admin\KendaraanUnit::search',    ['as' => 'kendaraan.search']);
 
         // =========================
-        // ADMIN: Data Kendala (vw_admin_kendala)
+        // ADMIN: Data Kendala (baru)
         // =========================
         $routes->group('admin/kendala', ['namespace' => 'App\Controllers\Admin'], static function ($routes) {
             // Page + API list/export
@@ -150,7 +153,6 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->delete('admin/ac-units/(:num)', 'Admin\AcUnits::delete/$1', ['as' => 'admin.acunits.delete']); // delete (DELETE)
         // Jika ada method store() di controller, aktifkan ini:
         // $routes->post('admin/ac-units', 'Admin\AcUnits::store'); // create
-
     });
 
     /* ---------- USER (mobile-first) ---------- */
