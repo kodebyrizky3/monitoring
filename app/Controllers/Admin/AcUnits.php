@@ -270,6 +270,56 @@ class AcUnits extends BaseController
         return $this->response->download($diskFile, null)->setFileName($safeName);
     }
 
+    public function bulkDelete()
+    {
+    if ($this->request->getMethod(true) !== 'POST') {
+        return redirect()->back()->with('err','Method Not Allowed');
+    }
+
+    $ids = $this->request->getPost('ids');
+    if (!$ids || !is_array($ids)) {
+        return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
+    }
+
+    // Normalisasi: int unik & > 0
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    $ids = array_filter($ids, static fn($v) => $v > 0);
+    if (empty($ids)) {
+        return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
+    }
+
+    $db = \Config\Database::connect();
+    $AC = new AcUnitModel();
+
+    $db->transBegin();
+    try {
+        foreach ($ids as $id) {
+            $row = $AC->find($id);
+            if (!$row) continue;
+
+            // hapus anak
+            (new AcRepairModel())->where('ac_id', $id)->delete();
+            (new AcTicketModel())->where('ac_id', $id)->delete();
+
+            // hapus induk
+            $db->table('ac_units')->where('id', $id)->delete();
+
+            // hapus file
+            $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
+            if (!empty($row['kode_qr'])) {
+                @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
+            }
+        }
+        $db->transCommit();
+    } catch (\Throwable $e) {
+        $db->transRollback();
+        return redirect()->route('admin.ac.index')->with('err','Gagal hapus: '.$e->getMessage());
+    }
+
+    return redirect()->route('admin.ac.index')->with('ok','Berhasil hapus '.count($ids).' perangkat.');
+    }
+
+
     /* ====== EXPORT EXCEL / CSV (ikut filter) ====== */
     public function export()
     {

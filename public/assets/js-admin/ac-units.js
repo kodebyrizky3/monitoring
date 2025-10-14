@@ -1,16 +1,25 @@
-// public/assets/js-admin/ac-units.js  (v1.4.7)
+// public/assets/js-admin/ac-units.js  (v1.7.0)
 (function(){
   'use strict';
 
-  const tbody   = document.getElementById('acTbody');
-  const pagerEl = document.getElementById('acPager');
-  const totalEl = document.getElementById('acTotal');
-  const infoEl  = document.getElementById('liveInfo');
+  const tbody    = document.getElementById('acTbody');
+  const pagerEl  = document.getElementById('acPager');
+  const totalEl  = document.getElementById('acTotal');
+  const infoEl   = document.getElementById('liveInfo');
 
-  const qInput  = document.getElementById('qInput');
-  const stSel   = document.getElementById('statusSelect');
-  const perSel  = document.getElementById('perPageSelect');
-  const exportBtn = document.getElementById('btnExport');
+  const qInput   = document.getElementById('qInput');
+  const stSel    = document.getElementById('statusSelect');
+  const perSel   = document.getElementById('perPageSelect');
+  const exportBtn= document.getElementById('btnExport');
+
+  // Bulk selection UI
+  const chkAll   = document.getElementById('chkAll');
+  const btnBulk  = document.getElementById('btnBulkDelete');
+  const selCount = document.getElementById('selCount');
+  const bulkForm = document.getElementById('bulkDeleteForm');
+
+  // simpan id terpilih lintas pagination & filter
+  const selected = new Set();
 
   let inflightController = null;
   let reqSeq = 0;
@@ -73,7 +82,7 @@
     });
   }
 
-  function bindDelete(){
+  function bindDeleteButtons(){
     document.querySelectorAll('.btn-delete').forEach(btn=>{
       btn.onclick = async (e)=>{
         e.preventDefault();
@@ -86,8 +95,8 @@
           title: 'Hapus data?',
           html: `AC <b>${escapeHtml(name)}</b> akan dihapus beserta riwayat dan file terkait.`,
           showCancelButton: true,
-          confirmButtonText: 'Ya, hapus',
-          cancelButtonText: 'Batal',
+          confirmButtonText: 'Hapus',
+          cancelButtonText: 'Tidak',
           reverseButtons: true
         });
         if(!res.isConfirmed) return;
@@ -99,6 +108,72 @@
     });
   }
 
+  // ====== Selection helpers ======
+  function updateBulkUI(){
+    const n = selected.size;
+    if (selCount) selCount.textContent = String(n);
+    if (btnBulk)  btnBulk.disabled = n === 0;
+  }
+  function syncHeaderCheck(){
+    if (!chkAll || !tbody) return;
+    const cbs = Array.from(tbody.querySelectorAll('input.row-check'));
+    const all = cbs.length>0 && cbs.every(cb => cb.checked);
+    chkAll.checked = all;
+    chkAll.indeterminate = cbs.length>0 && !all && cbs.some(cb => cb.checked);
+  }
+  function bindRowChecks(){
+    if (!tbody) return;
+    tbody.querySelectorAll('input.row-check').forEach(cb=>{
+      const id = parseInt(cb.value,10);
+      cb.checked = selected.has(id);
+      cb.addEventListener('change', ()=>{
+        if (cb.checked) selected.add(id); else selected.delete(id);
+        syncHeaderCheck();
+        updateBulkUI();
+      });
+    });
+  }
+
+  chkAll?.addEventListener('change', ()=>{
+    const cbs = tbody ? tbody.querySelectorAll('input.row-check') : [];
+    cbs.forEach(cb=>{
+      cb.checked = chkAll.checked;
+      const id = parseInt(cb.value,10);
+      if (chkAll.checked) selected.add(id); else selected.delete(id);
+    });
+    updateBulkUI();
+  });
+
+  btnBulk?.addEventListener('click', async ()=>{
+    if (selected.size === 0) return;
+
+    const res = await Swal.fire({
+      icon: 'warning',
+      title: 'Hapus data?',
+      html: `Anda akan menghapus <b>${selected.size}</b> perangkat beserta foto, QR, riwayat perbaikan, dan tiketnya.`,
+      showCancelButton: true,
+      confirmButtonText: 'Hapus Semua',
+      cancelButtonText: 'Tidak',
+      reverseButtons: true
+    });
+    if (!res.isConfirmed) return;
+
+    // submit via hidden form (aman CSRF)
+    if (!bulkForm) return;
+    // bersihkan input lama
+    Array.from(bulkForm.querySelectorAll('input[name="ids[]"]')).forEach(el=>el.remove());
+    // tambah ids[]
+    selected.forEach(id=>{
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'ids[]';
+      inp.value = String(id);
+      bulkForm.appendChild(inp);
+    });
+    bulkForm.submit();
+  });
+
+  // ====== Fetch List ======
   async function fetchList(){
     const mySeq = ++reqSeq;
     inflightController?.abort();
@@ -132,8 +207,12 @@
         return `<span class="badge bg-${m[st]||'secondary'}">${escapeHtml(st||'')}</span>`;
       };
 
+      // render: with checkbox column + actions
       tbody.innerHTML = rows.length ? rows.map(r=>`
         <tr>
+          <td class="col-select">
+            <input type="checkbox" class="form-check-input table-check row-check" value="${r.id}">
+          </td>
           <td class="col-id">${r.id}</td>
           <td class="col-nama">${escapeHtml(r.nomor_unik || '')}</td>
           <td class="col-tipe">${escapeHtml(r.tipe_model || '')}</td>
@@ -150,10 +229,14 @@
             </div>
           </td>
         </tr>
-      `).join('') : `<tr><td colspan="8" class="text-center text-muted">Tidak ada data.</td></tr>`;
+      `).join('') : `<tr><td colspan="9" class="text-center text-muted">Tidak ada data.</td></tr>`;
 
       renderPager();
-      bindDelete();
+      bindDeleteButtons();
+      bindRowChecks();
+      syncHeaderCheck();
+      updateBulkUI();
+
       setInfoCount(rows.length, total, state.page, state.perPage);
 
     }catch(err){
@@ -162,7 +245,7 @@
     }
   }
 
-  // Events: filter & pagination
+  // Filter handlers
   qInput && qInput.addEventListener('input', debounce(()=>{ state.q=qInput.value||''; state.page=1; fetchList(); }, 250));
   stSel  && stSel.addEventListener('change', ()=>{ state.status=stSel.value||''; state.page=1; fetchList(); });
   perSel && perSel.addEventListener('change', ()=>{ state.perPage=parseInt(perSel.value||'10',10); state.page=1; fetchList(); });
