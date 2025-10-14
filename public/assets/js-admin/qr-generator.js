@@ -63,13 +63,24 @@
     const btnPick       = document.getElementById('btnPick');
     const btnGanti      = document.getElementById('btnGanti');
     const btnHapus      = document.getElementById('btnHapus');
+    const btnCrop       = document.getElementById('btnCrop');
     const dzEmpty       = document.getElementById('dzEmpty');
     const dzPreviewBox  = document.getElementById('dzPreviewBox');
     const dzPreview     = document.getElementById('dzPreview');
     const pvPhotoBox    = document.getElementById('pvPhotoBox');
     const pvImg         = document.getElementById('pvImg');
 
-    let photoDataUrl = null;
+    // Cropper modal elem
+    const cropModalEl   = document.getElementById('cropModal');
+    const cropImgEl     = document.getElementById('cropImage');
+    const btnCropSave   = document.getElementById('btnCropSave');
+    const btnCropReset  = document.getElementById('btnCropReset');
+    const btnCropRotate = document.getElementById('btnCropRotate');
+
+    let cropper = null;
+    let bsCropModal = null;
+
+    let photoDataUrl = null;   // sumber foto saat ini (hasil pilih/drag/crop)
 
     function applyPhoto(dataUrl){
       photoDataUrl = dataUrl || null;
@@ -79,21 +90,24 @@
         dzPreviewBox?.classList.remove('d-none');
         if (pvImg) pvImg.src = photoDataUrl;
         pvPhotoBox?.classList.remove('d-none');
+        btnCrop?.removeAttribute('disabled');
       } else {
         if (dzPreview) dzPreview.removeAttribute('src');
         dzPreviewBox?.classList.add('d-none');
         dzEmpty?.classList.remove('d-none');
         if (pvImg) pvImg.removeAttribute('src');
         pvPhotoBox?.classList.add('d-none');
+        btnCrop?.setAttribute('disabled', 'disabled');
       }
     }
 
+    // ===== File choose / drop
     btnPick?.addEventListener('click', e => { e.preventDefault(); fileInput?.click(); });
     btnGanti?.addEventListener('click', e => { e.preventDefault(); fileInput?.click(); });
     btnHapus?.addEventListener('click', e => { e.preventDefault(); applyPhoto(null); });
     fileInput?.addEventListener('change', async e => {
       const f = e.target.files?.[0]; if (!f || !f.type.startsWith('image/')) return;
-      const raw = await fileToDataURL(f); const dataUrl = await compressDataURL(raw, 1200, 1200, 0.85);
+      const raw = await fileToDataURL(f); const dataUrl = await compressDataURL(raw, 1600, 1600, 0.9);
       applyPhoto(dataUrl);
     });
     if (dz){
@@ -101,10 +115,66 @@
       ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
       dz.addEventListener('drop', async e => {
         const f = e.dataTransfer?.files?.[0]; if (!f || !f.type.startsWith('image/')) return;
-        const raw = await fileToDataURL(f); const dataUrl = await compressDataURL(raw, 1200, 1200, 0.85);
+        const raw = await fileToDataURL(f); const dataUrl = await compressDataURL(raw, 1600, 1600, 0.9);
         applyPhoto(dataUrl);
       });
     }
+
+    // ===== Crop logic
+    function openCropper(){
+      if (!photoDataUrl){ swalErr('Tidak ada foto', 'Pilih/unggah foto dulu.'); return; }
+      cropImgEl.src = photoDataUrl;                 // tampilkan gambar
+      // pastikan modal objek
+      bsCropModal = bsCropModal || new bootstrap.Modal(cropModalEl);
+      bsCropModal.show();
+    }
+    function initCropper(){
+      // destroy jika ada
+      if (cropper){ cropper.destroy(); cropper = null; }
+      // buat cropper dengan rasio 16:9 (match hero/detail)
+      cropper = new Cropper(cropImgEl, {
+        viewMode: 1,
+        dragMode: 'move',
+        aspectRatio: 16/9,
+        autoCropArea: 1,
+        background: false,
+        responsive: true,
+        movable: true,
+        zoomable: true,
+        rotatable: true,
+        scalable: false,
+      });
+    }
+    function destroyCropper(){
+      if (cropper){ cropper.destroy(); cropper = null; }
+      cropImgEl.removeAttribute('src');
+    }
+
+    btnCrop?.addEventListener('click', (e)=>{ e.preventDefault(); openCropper(); });
+
+    cropModalEl?.addEventListener('shown.bs.modal', initCropper);
+    cropModalEl?.addEventListener('hidden.bs.modal', destroyCropper);
+
+    btnCropReset?.addEventListener('click', (e)=>{ e.preventDefault(); if (cropper) cropper.reset(); });
+    btnCropRotate?.addEventListener('click', (e)=>{ e.preventDefault(); if (cropper) cropper.rotate(90); });
+
+    btnCropSave?.addEventListener('click', async ()=> {
+      if (!cropper) return;
+      try{
+        // target 1280x720 biar tajam, tetap 16:9
+        const canvas = cropper.getCroppedCanvas({ width: 1280, height: 720, imageSmoothingQuality: 'high' });
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        // terapkan ke preview (gantikan foto lama)
+        applyPhoto(dataUrl);
+        // tutup modal
+        bsCropModal?.hide();
+        // notifikasi
+        swalOK('Sukses', 'Foto berhasil dicrop & disimpan ke preview.');
+      }catch(e){
+        console.error(e);
+        swalErr('Gagal crop', 'Tidak bisa memotong gambar ini.');
+      }
+    });
 
     // ======== LIMITERS (UX)
     function digitsOnly(el, maxLen=null){
@@ -141,13 +211,11 @@
       const touched = new WeakSet();
 
       const paint = (el) => {
-        // netralkan yang kosong (tidak kasih centang)
         const val = (el.value || '').trim();
         if (!val && !el.required){
           el.classList.remove('is-valid','is-invalid');
           return;
         }
-        // jika ada value atau required → cek validity
         const ok = el.checkValidity();
         el.classList.toggle('is-valid',   touched.has(el) && ok);
         el.classList.toggle('is-invalid', touched.has(el) && !ok);
@@ -156,7 +224,6 @@
       fields.forEach(el=>{
         el.addEventListener('input', () => { touched.add(el); paint(el); });
         el.addEventListener('blur',  () => { touched.add(el); paint(el); });
-        // state awal netral
         el.classList.remove('is-valid','is-invalid');
       });
     }
@@ -188,12 +255,10 @@
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      // tampilkan validasi bootstrap hanya jika ada yang invalid
       if (!form.checkValidity()) {
-        form.classList.add('was-validated'); // akan memunculkan merah untuk yang salah
+        form.classList.add('was-validated');
         return;
       } else {
-        // jika valid semua, bersihkan state validasi supaya tidak ada "centang hijau" nyangkut
         form.classList.remove('was-validated');
         form.querySelectorAll('.is-valid,.is-invalid').forEach(el=>el.classList.remove('is-valid','is-invalid'));
       }
@@ -279,7 +344,7 @@
         swalOK('QR berhasil dibuat');
       }
 
-      // simpan state
+      // simpan state (preview)
       try {
         const state = { token, url, nama, merek, model, serial, lokasi, bmn, kap, status, base, photo: photoDataUrl || null };
         sessionStorage.setItem('lastQR', JSON.stringify(state));
@@ -305,6 +370,7 @@
         dzPreview?.removeAttribute('src'); dzPreviewBox?.classList.add('d-none'); dzEmpty?.classList.remove('d-none');
         if (fileInput) fileInput.value = '';
         photoDataUrl = null;
+        btnCrop?.setAttribute('disabled','disabled');
 
         alertBox?.classList.add('d-none');
         form?.classList.remove('was-validated');

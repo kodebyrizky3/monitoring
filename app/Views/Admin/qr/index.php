@@ -7,7 +7,7 @@
       <div class="card-body">
         <h2 class="h6 mb-3">Detail Perangkat</h2>
 
-        <!-- Tambah class prevent-autogreen & matikan autofill -->
+        <!-- prevent-autogreen: cegah centang hijau pada input kosong -->
         <form id="formQR"
               class="row g-3 needs-validation prevent-autogreen"
               novalidate autocomplete="off"
@@ -22,7 +22,6 @@
 
           <div class="col-6">
             <label class="form-label">Merek</label>
-            <!-- field opsional → tambahkan class no-autovalid bila tidak ingin centang otomatis -->
             <input name="merek" class="form-control no-autovalid" placeholder="Daikin" maxlength="50">
           </div>
           <div class="col-6">
@@ -55,7 +54,6 @@
 
           <div class="col-12">
             <label class="form-label">Status AC</label>
-            <!-- no-autovalid untuk menonaktifkan "centang hijau" default -->
             <select name="status" id="status" class="form-select no-autovalid">
               <option value="NORMAL" selected>NORMAL</option>
               <option value="RUSAK_RINGAN">Rusak Ringan</option>
@@ -76,7 +74,10 @@
               </div>
               <div id="dzPreviewBox" class="dz-preview d-none">
                 <img id="dzPreview" class="img-fluid rounded border" alt="Foto AC">
-                <div class="d-flex gap-2 justify-content-center mt-2">
+                <div class="d-flex flex-wrap gap-2 justify-content-center mt-2">
+                  <button class="btn btn-outline-info btn-sm" id="btnCrop" type="button">
+                    <i class="bi bi-crop"></i> Crop
+                  </button>
                   <button class="btn btn-outline-secondary btn-sm" id="btnGanti" type="button">Ganti</button>
                   <button class="btn btn-outline-danger btn-sm" id="btnHapus" type="button">Hapus</button>
                 </div>
@@ -175,15 +176,47 @@
   </div>
 </div>
 
+<!-- ========== Modal Crop Foto ========== -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-crop"></i> Crop Foto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cropperCanvasWrap" class="bg-dark rounded overflow-hidden">
+          <img id="cropImage" alt="Crop source">
+        </div>
+        <div class="d-flex justify-content-between align-items-center pt-2">
+          <div class="small text-muted">Rasio: 16:9 (sesuai hero & preview)</div>
+          <div class="btn-group btn-group-sm">
+            <button id="btnCropRotate" class="btn btn-outline-secondary" type="button" title="Putar 90°"><i class="bi bi-arrow-clockwise"></i> Rotate</button>
+            <button id="btnCropReset"  class="btn btn-outline-secondary" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCropCancel" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button id="btnCropSave"   type="button" class="btn btn-primary">
+          <i class="bi bi-check2"></i> Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?= $this->endSection() ?>
 
 <?= $this->section('styles') ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet">
 <link href="<?= base_url('assets/css/admin-qr.css') ?>" rel="stylesheet">
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 <script src="<?= base_url('assets/js-admin/qr-generator.js') ?>"></script>
 <?= $this->endSection() ?>
