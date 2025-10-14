@@ -16,213 +16,181 @@ class Qr extends BaseController
         ]);
     }
 
-    // POST /admin/qr/save  — insert adaptif sesuai skema tabel
+    private function withCsrf(array $payload): array
+    {
+        if (function_exists('csrf_hash')) {
+            $payload['csrf']       = csrf_hash();
+            $payload['csrf_token'] = csrf_token();
+        }
+        return $payload;
+    }
+
     public function save()
     {
         if ($this->request->getMethod(true) !== 'POST') {
-            return $this->response->setJSON(['error' => 'Method Not Allowed'])
+            return $this->response->setJSON($this->withCsrf(['error' => 'Method Not Allowed']))
                                   ->setStatusCode(ResponseInterface::HTTP_METHOD_NOT_ALLOWED);
+        }
+
+        // === VALIDASI INPUT
+        $rules = [
+            'nama'            => 'required|max_length[100]',   // dipotong lagi ke 64 utk DB
+            'merek'           => 'permit_empty|max_length[50]',
+            'model'           => 'permit_empty|max_length[50]',
+            'serial_no'       => 'permit_empty|max_length[100]',
+            'lokasi'          => 'permit_empty|max_length[120]',
+            'base'            => 'permit_empty|valid_url_strict',
+            'kapasitas_btu'   => 'permit_empty|regex_match[/^\d{1,7}$/]',
+            'bmn_no_display'  => 'permit_empty|regex_match[/^\d{1,30}$/]',
+            // status di DB: NORMAL / RUSAK_RINGAN / RUSAK_BERAT
+            'status'          => 'permit_empty|in_list[NORMAL,RUSAK_RINGAN,RUSAK_BERAT]',
+        ];
+        if (!$this->validate($rules)) {
+            return $this->response->setJSON($this->withCsrf([
+                'error'      => 'Validasi gagal',
+                'validation' => $this->validator->getErrors(),
+            ]))->setStatusCode(422);
         }
 
         $r = $this->request;
 
-        // Ambil input
-        $token   = trim((string)$r->getPost('token'));      // boleh kosong → auto-generate
+        // === Ambil input
+        $token   = trim((string)$r->getPost('token')); // dibuat di JS
         $nama    = trim((string)$r->getPost('nama'));
         $merek   = trim((string)$r->getPost('merek'));
         $model   = trim((string)$r->getPost('model'));
         $serial  = trim((string)$r->getPost('serial_no'));
         $lokasi  = trim((string)$r->getPost('lokasi'));
-        $kodeOp  = trim((string)$r->getPost('kode_qr'));    // catatan internal (opsional)
-        $statusI = strtoupper(trim((string)$r->getPost('status') ?: 'NORMAL'));
+        $statusI = strtoupper(trim((string)($r->getPost('status') ?: 'NORMAL'))); // default NORMAL
 
-        if ($nama === '') {
-            return $this->response->setJSON(['error' => 'Nama wajib diisi'])
-                                  ->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY);
-        }
+        // angka-only
+        $kapBTU = (int)preg_replace('/\D+/', '', (string)($r->getPost('kapasitas_btu') ?? '12000'));
+        if ($kapBTU <= 0) $kapBTU = 12000;
+        $bmn    = preg_replace('/\D+/', '', (string)($r->getPost('bmn_no_display') ?? ''));
 
-        $AC = new AcUnitModel();
-
-        // === 1) Cek skema minimum & ambil daftar kolom tabel
+        $AC    = new AcUnitModel();
         $table = $AC->table;
-        $cols  = $this->listColumns($table);        // ['Field' => meta..]
+        $cols  = $this->listColumns($table);
         if (!$cols) {
-            return $this->response->setJSON(['error' => "Tabel `$table` tidak ditemukan"])
+            return $this->response->setJSON($this->withCsrf(['error' => "Tabel `$table` tidak ditemukan"]))
                                   ->setStatusCode(500);
         }
+        $uniques = $this->listUniqueColumns($table);
 
-        // === 2) Pastikan token (kode_qr) ada & unik — jika kolomnya ada
-        $kodeQrCol = 'kode_qr';
-        if (isset($cols[$kodeQrCol])) {
+        // === Pastikan token (kode_qr) unik
+        if (isset($cols['kode_qr'])) {
             if ($token === '') {
                 $token = $this->makeKodeQrUnique($AC);
             } else {
-                if ($AC->where($kodeQrCol, $token)->first()) {
-                    return $this->response->setJSON(['error' => "$kodeQrCol sudah dipakai"])
+                if ($AC->where('kode_qr', $token)->first()) {
+                    return $this->response->setJSON($this->withCsrf(['error' => 'kode_qr sudah dipakai']))
                                           ->setStatusCode(ResponseInterface::HTTP_CONFLICT);
                 }
             }
         }
 
-        // === 3) Bentuk data calon insert
-        // Rapikan nama (tanpa suffix, uppercase)
+        // === Bentuk nilai
         $nomorUnik = $this->normalizeName($nama);
+        // jaga batas DB: varchar(64)
+        $nomorUnik = mb_substr($nomorUnik, 0, 64, 'UTF-8');
 
-        $tipeModel = trim(($merek ? $merek.' ' : '').$model);
-        $catatan   = [];
-        if ($kodeOp !== '') $catatan[] = 'KODE='.$kodeOp;
-        if ($serial  !== '') $catatan[] = 'SN='.$serial;
-
-        $candidate = [
-            'kode_qr'       => $token ?: null,
-            'nomor_unik'    => $nomorUnik ?: null,
-            'tipe_model'    => ($tipeModel !== '' ? $tipeModel : '-'),
-            'kapasitas_btu' => 12000,
-            'lokasi'        => ($lokasi !== '' ? $lokasi : '-'),
-            'status_ac'     => $statusI,
-            'catatan'       => ($catatan ? implode("\n", $catatan) : null),
-        ];
-
-        // === 4) TRIM KE KOLOM YANG ADA SAJA (hindari "Unknown column")
-        $data = [];
-        foreach ($candidate as $k => $v) {
-            if (isset($cols[$k])) $data[$k] = $v;
+        // Jika kolom nomor_unik unique → buat unik dengan suffix (#2, #3, ...)
+        if (in_array('nomor_unik', $uniques, true)) {
+            $nomorUnik = $this->makeUniqueValue($AC, 'nomor_unik', $nomorUnik, 64);
         }
 
-        // === 5) ENUM guard utk status_ac (kalau kolomnya ENUM)
-        if (isset($data['status_ac']) && isset($cols['status_ac'])) {
+        $tipeModel = trim(($merek ? $merek.' ' : '').$model);
+        if (mb_strlen($tipeModel, 'UTF-8') > 120) $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
+
+        $catatan = [];
+        if ($serial !== '') $catatan[] = 'SN='.$serial;
+        if ($bmn    !== '') $catatan[] = 'BMN='.$bmn;
+
+        $candidate = [
+            'kode_qr'        => $token ?: null,
+            'nomor_unik'     => $nomorUnik ?: null,
+            'tipe_model'     => ($tipeModel !== '' ? $tipeModel : '-'),
+            'kapasitas_btu'  => $kapBTU,
+            'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
+            'bmn_no_display' => ($bmn !== '' ? $bmn : null),
+            'status_ac'      => $statusI,
+            'catatan'        => ($catatan ? implode("\n", $catatan) : null),
+        ];
+
+        // pilih hanya kolom yg ada
+        $data = [];
+        foreach ($candidate as $k => $v) if (isset($cols[$k])) $data[$k] = $v;
+
+        // enum guard (pakai nilai pertama kalau tidak valid)
+        if (isset($data['status_ac'], $cols['status_ac'])) {
             $allowed = $this->parseEnumAllowed($cols['status_ac']['Type']);
             if ($allowed && !in_array($data['status_ac'], $allowed, true)) {
-                // fallback ke nilai pertama ENUM
                 $data['status_ac'] = $allowed[0];
             }
         }
 
-        // === 6) Isi default utk kolom NOT NULL tanpa default
+        // default utk NOT NULL tanpa default
         foreach ($cols as $name => $meta) {
             if (!array_key_exists($name, $data)) {
-                // NOT NULL? kasih nilai aman default
                 $isNotNull = (strpos(strtoupper($meta['Null'] ?? ''), 'NO') !== false);
                 $hasDefault= array_key_exists('Default', $meta) && $meta['Default'] !== null;
                 if ($isNotNull && !$hasDefault) {
                     $type = strtolower($meta['Type'] ?? 'varchar(191)');
-                    if (strpos($type, 'int') !== false)       $data[$name] = 0;
-                    elseif (strpos($type, 'enum(') !== false) $data[$name] = $this->parseEnumAllowed($type)[0] ?? '';
-                    elseif (strpos($type, 'varchar') !== false) $data[$name] = '';
-                    elseif ($type === 'text')                 $data[$name] = '';
-                    else                                      $data[$name] = '';
+                    if (strpos($type, 'int') !== false)          $data[$name] = 0;
+                    elseif (strpos($type, 'enum(') !== false)    $data[$name] = $this->parseEnumAllowed($type)[0] ?? '';
+                    else                                         $data[$name] = '';
                 }
             }
         }
 
-        // === 7) Insert dgn detail error bila gagal
+        // === Insert
         try {
-            $id = $AC->insert($data, true);
+            $id = $AC->protect(false)->insert($data, true);
             if ($id === false) {
-                return $this->response->setJSON([
-                    'error'      => 'Gagal simpan (validasi)',
+                return $this->response->setJSON($this->withCsrf([
+                    'error'      => 'Gagal simpan (validasi model)',
                     'validation' => $AC->errors(),
                     'db_error'   => $AC->db->error(),
                     'last_query' => (string)$AC->db->getLastQuery(),
-                    'data'       => $data,
-                    'columns'    => array_keys($cols),
-                ])->setStatusCode(ResponseInterface::HTTP_UNPROCESSABLE_ENTITY);
+                ]))->setStatusCode(422);
             }
         } catch (DatabaseException $e) {
-            log_message('error', 'DB exception /admin/qr/save: {msg} | SQL: {sql}', [
-                'msg' => $e->getMessage(),
-                'sql' => (string)$AC->db->getLastQuery(),
-            ]);
-            return $this->response->setJSON([
+            return $this->response->setJSON($this->withCsrf([
                 'error'      => 'DB exception',
                 'message'    => $e->getMessage(),
-                'code'       => $e->getCode(),
                 'db_error'   => $AC->db->error(),
                 'last_query' => (string)$AC->db->getLastQuery(),
                 'data'       => $data,
-                'columns'    => array_keys($cols),
-            ])->setStatusCode(500);
+            ]))->setStatusCode(500);
         } catch (\Throwable $e) {
-            return $this->response->setJSON([
+            return $this->response->setJSON($this->withCsrf([
                 'error'   => 'Server exception',
                 'message' => $e->getMessage(),
-            ])->setStatusCode(500);
+            ]))->setStatusCode(500);
         }
 
-        // === 8) Upload foto opsional
+        // Upload foto opsional
         $foto = $r->getFile('foto');
         if ($foto && $foto->isValid()) {
             $dir = FCPATH.'uploads/ac_units/'.$id;
             if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
-                return $this->response->setJSON(['error' => 'Gagal membuat folder upload'])->setStatusCode(500);
+                return $this->response->setJSON($this->withCsrf(['error' => 'Gagal membuat folder upload']))->setStatusCode(500);
             }
             $ext = strtolower($foto->getClientExtension() ?: $foto->getExtension() ?: $foto->guessExtension() ?: 'jpg');
             if (!in_array($ext, ['jpg','jpeg','png','webp'], true)) $ext = 'jpg';
-            foreach (['jpg','jpeg','png','webp'] as $x) { @unlink($dir.'/main.'.$x); }
+            foreach (['jpg','jpeg','png','webp'] as $x) @unlink($dir.'/main.'.$x);
             $foto->move($dir, 'main.'.$ext, true);
         }
 
-        return $this->response->setJSON([
+        return $this->response->setJSON($this->withCsrf([
             'ok'  => true,
             'id'  => (int)$id,
-            'url' => site_url('ac/'.($data[$kodeQrCol] ?? $token ?? '')),
-        ]);
-    }
-
-    /** DIAG: cek skema & index unik */
-    public function diag()
-    {
-        $AC   = new AcUnitModel();
-        $cols = $this->listColumns($AC->table);
-        $uni  = $this->listUniqueColumns($AC->table);
-
-        return $this->response->setJSON([
-            'table'   => $AC->table,
-            'columns' => $cols,
-            'uniques' => $uni,
-        ]);
-    }
-
-    /** TEST: lakukan insert dummy dalam transaksi lalu rollback (untuk uji cepat) */
-    public function testInsert()
-    {
-        $AC = new AcUnitModel();
-        $db = \Config\Database::connect();
-        $db->transBegin();
-
-        $cols = $this->listColumns($AC->table);
-        $data = [];
-        if (isset($cols['kode_qr']))    $data['kode_qr']    = bin2hex(random_bytes(8));
-        if (isset($cols['nomor_unik'])) $data['nomor_unik'] = 'TEST UNIT';
-        if (isset($cols['tipe_model'])) $data['tipe_model'] = 'TEST';
-        if (isset($cols['kapasitas_btu'])) $data['kapasitas_btu'] = 9000;
-        if (isset($cols['lokasi']))     $data['lokasi']     = '-';
-        if (isset($cols['status_ac']))  $data['status_ac']  = ($this->parseEnumAllowed($cols['status_ac']['Type'])[0] ?? 'NORMAL');
-
-        try {
-            $ok = $db->table($AC->table)->insert($data);
-            $last = (string)$db->getLastQuery();
-            $db->transRollback(); // rollback supaya tidak tersimpan
-            return $this->response->setJSON([
-                'ok'         => (bool)$ok,
-                'test_data'  => $data,
-                'last_query' => $last,
-                'db_error'   => $db->error(),
-            ]);
-        } catch (\Throwable $e) {
-            $db->transRollback();
-            return $this->response->setJSON([
-                'error'      => 'DB exception during testInsert',
-                'message'    => $e->getMessage(),
-                'last_query' => (string)$db->getLastQuery(),
-                'db_error'   => $db->error(),
-            ])->setStatusCode(500);
-        }
+            'url' => site_url('ac/'.($data['kode_qr'] ?? $token)),
+        ]));
     }
 
     /* ============== Helpers ============== */
 
-    /** Buat kode_qr unik */
     private function makeKodeQrUnique(AcUnitModel $AC, int $bytes = 16): string
     {
         for ($i = 0; $i < 5; $i++) {
@@ -232,7 +200,20 @@ class Qr extends BaseController
         return bin2hex(random_bytes($bytes * 2));
     }
 
-    /** Rapikan nama (uppercase, trim) */
+    /** Pastikan nilai unik pada kolom UNIQUE (dengan suffix #2, #3, ...) */
+    private function makeUniqueValue(AcUnitModel $AC, string $column, string $base, int $maxLen = 64): string
+    {
+        $val = $base;
+        $i = 2;
+        while ($AC->where($column, $val)->first()) {
+            $suffix = ' #'.$i;
+            $val = mb_substr($base, 0, $maxLen - mb_strlen($suffix, 'UTF-8'), 'UTF-8') . $suffix;
+            $i++;
+            if ($i > 9999) break;
+        }
+        return $val;
+    }
+
     private function normalizeName(string $text): string
     {
         $t = preg_replace('/\s+/', ' ', trim($text));
@@ -240,17 +221,15 @@ class Qr extends BaseController
         return mb_strtoupper($t, 'UTF-8');
     }
 
-    /** Ambil daftar kolom: map[name] = meta (Type, Null, Key, Default, Extra) */
     private function listColumns(string $table): array
     {
         $db  = \Config\Database::connect();
         $res = $db->query("SHOW COLUMNS FROM `{$table}`")->getResultArray();
         $map = [];
-        foreach ($res as $r) { $map[$r['Field']] = $r; }
+        foreach ($res as $r) $map[$r['Field']] = $r;
         return $map;
     }
 
-    /** Ambil daftar kolom yang punya unique index */
     private function listUniqueColumns(string $table): array
     {
         $db  = \Config\Database::connect();
@@ -264,17 +243,12 @@ class Qr extends BaseController
         return array_map(fn($r) => $r['COLUMN_NAME'], $res);
     }
 
-    /** Parse daftar nilai ENUM dari definisi kolom */
     private function parseEnumAllowed(?string $type): array
     {
-        if (!$type) return [];
-        if (stripos($type, 'enum(') === false) return [];
+        if (!$type || stripos($type, 'enum(') === false) return [];
         if (!preg_match('/enum\((.*)\)/i', $type, $m)) return [];
         $inside = $m[1];
-        // pecah 'A','B','C'
-        $vals = preg_split("/,(?=(?:[^']*'[^']*')*[^']*$)/", $inside); // split di koma di luar quote
-        $out  = [];
-        foreach ($vals as $v) { $out[] = trim($v, " '"); }
-        return $out;
+        $vals = preg_split("/,(?=(?:[^']*'[^']*')*[^']*$)/", $inside);
+        return array_map(fn($v) => trim($v, " '"), $vals);
     }
 }

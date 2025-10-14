@@ -2,7 +2,6 @@
 <?= $this->section('content') ?>
 
 <div class="row g-3">
-  <!-- FORM -->
   <div class="col-12 col-lg-5">
     <div class="card shadow-sm">
       <div class="card-body">
@@ -11,30 +10,52 @@
         <form id="formQR" class="row g-3 needs-validation" novalidate
               data-save-url="<?= site_url('admin/qr/save') ?>">
           <?= csrf_field() ?>
-          <input type="hidden" name="status" value="normal">
 
           <div class="col-12">
             <label class="form-label">Nama Perangkat</label>
-            <input name="nama" class="form-control" placeholder="AC Ruang Rapat" required>
+            <input name="nama" class="form-control" placeholder="AC Ruang Rapat" required maxlength="64">
             <div class="invalid-feedback">Wajib diisi.</div>
           </div>
 
           <div class="col-6">
             <label class="form-label">Merek</label>
-            <input name="merek" class="form-control" placeholder="Daikin">
+            <input name="merek" class="form-control" placeholder="Daikin" maxlength="50">
           </div>
           <div class="col-6">
             <label class="form-label">Model</label>
-            <input name="model" class="form-control" placeholder="FTKC25U">
+            <input name="model" class="form-control" placeholder="FTKC25U" maxlength="50">
           </div>
 
           <div class="col-6">
             <label class="form-label">Serial No</label>
-            <input name="serial_no" class="form-control" placeholder="SN12345">
+            <input name="serial_no" class="form-control" placeholder="SN12345" maxlength="100">
           </div>
           <div class="col-6">
             <label class="form-label">Lokasi</label>
-            <input name="lokasi" class="form-control" placeholder="Lantai 2 - Ruang Rapat">
+            <input name="lokasi" class="form-control" placeholder="Lantai 2 - Ruang Rapat" maxlength="120">
+          </div>
+
+          <div class="col-6">
+            <label class="form-label">Kapasitas (BTU)</label>
+            <input name="kapasitas_btu" id="kapasitas_btu" class="form-control"
+                   placeholder="12000" inputmode="numeric" pattern="\d*" maxlength="7">
+            <div class="form-text">Hanya angka (contoh: 12000)</div>
+          </div>
+
+          <div class="col-6">
+            <label class="form-label">Nomor BMN</label>
+            <input name="bmn_no_display" id="bmn_no_display" class="form-control"
+                   placeholder="1234567890" inputmode="numeric" pattern="\d*" maxlength="30">
+            <div class="form-text">Hanya angka (0–9).</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">Status AC</label>
+            <select name="status" id="status" class="form-select">
+              <option value="NORMAL" selected>NORMAL</option>
+              <option value="RUSAK_RINGAN">Rusak Ringan</option>
+              <option value="RUSAK_BERAT">Rusak Berat</option>
+            </select>
           </div>
 
           <!-- FOTO -->
@@ -46,7 +67,7 @@
                 <i class="bi bi-image fs-2 d-block mb-2"></i>
                 <div class="mb-2">Seret foto ke sini atau</div>
                 <button class="btn btn-outline-secondary btn-sm" id="btnPick" type="button">Pilih Foto</button>
-                <div class="form-text mt-2">Disarankan foto tampak depan + stiker serial. Akan dikompres.</div>
+                <div class="form-text mt-2">Disarankan foto tampak depan + stiker serial.</div>
               </div>
               <div id="dzPreviewBox" class="dz-preview d-none">
                 <img id="dzPreview" class="img-fluid rounded border" alt="Foto AC">
@@ -60,8 +81,9 @@
 
           <div class="col-12">
             <label class="form-label">Base URL publik</label>
-            <input name="base" id="baseUrl" class="form-control" value="<?= rtrim(site_url(), '/') ?>">
-            <div class="form-text">Ubah jika domain/subfolder berbeda.</div>
+            <input name="base" id="baseUrl" class="form-control" value="<?= rtrim(site_url(), '/') ?>"
+                   pattern="https?://.+" required>
+            <div class="form-text">Contoh: https://domainmu.com</div>
           </div>
 
           <div class="col-12 d-grid d-sm-flex gap-2 mt-2">
@@ -84,32 +106,29 @@
         <div id="alertBox" class="alert alert-success d-none"></div>
 
         <div class="row g-3 align-items-start">
-          <!-- KIRI: CARD (ini yang dipakai saat cetak) -->
           <div class="col-md-6">
             <div class="device-card p-3 border rounded">
               <div class="d-flex justify-content-between align-items-start">
                 <div>
                   <div id="pvNama" class="fw-semibold">—</div>
-                  <div class="small text-muted">Kode: <code id="pvKode">—</code></div>
+                  <div class="small text-muted">Kode QR: <code id="pvKode">—</code></div>
                 </div>
-                
+                <span id="pvBadge" class="badge text-bg-secondary status-badge">Status</span>
               </div>
 
-              <!-- Foto preview layar -->
               <div id="pvPhotoBox" class="photo-box mt-3 d-none">
                 <img id="pvImg" class="img-fluid rounded border" alt="Foto AC">
               </div>
 
-              <!-- Grid konten untuk CETAK (juga tampil di layar, tapi rapi) -->
               <div class="print-grid mt-3">
-                <!-- QR kecil khusus cetak -->
                 <div class="qr-in-card">
                   <div id="qrInCard" class="qr-box"></div>
                 </div>
-                <!-- Info kanan -->
                 <div class="label-info">
                   <div class="kv"><span class="label">Merek:</span> <span id="pvMerek">—</span></div>
                   <div class="kv"><span class="label">Model/SN:</span> <span id="pvModelSn">—</span></div>
+                  <div class="kv"><span class="label">Kapasitas:</span> <span id="pvKap">—</span></div>
+                  <div class="kv"><span class="label">BMN:</span> <span id="pvBmn">—</span></div>
                   <div class="kv"><span class="label">Lokasi:</span> <span id="pvLokasi">—</span></div>
                   <div class="small text-muted url-line mt-1">
                     <i class="bi bi-link-45deg"></i>
@@ -120,7 +139,6 @@
             </div>
           </div>
 
-          <!-- KANAN: QR besar + aksi -->
           <div class="col-md-6 text-center">
             <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty">
               <div id="qrcode"></div>
