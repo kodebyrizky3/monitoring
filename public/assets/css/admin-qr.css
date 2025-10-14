@@ -49,6 +49,32 @@
 .dz-empty{ color:var(--bs-secondary-color); }
 .dz-preview img{ max-height:260px; object-fit:cover; width:100%; }
 
+/* ========= VALIDATION UX ========= */
+/* Tujuan: jangan tampilkan "centang hijau" pada input yang masih kosong,
+   walaupun form sudah .was-validated. Tambah class form: .prevent-autogreen */
+.prevent-autogreen.was-validated .form-control:valid:placeholder-shown{
+  /* netral: bukan valid look */
+  border-color: var(--bs-border-color) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+/* Kalau ada .is-valid terlanjur dipasang namun input masih kosong, netralkan juga */
+.form-control.is-valid:placeholder-shown{
+  border-color: var(--bs-border-color) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+/* Untuk SELECT opsional yang kita beri class .no-autovalid:
+   jangan kasih valid-look otomatis (tetap panah default saja) */
+.prevent-autogreen.was-validated .no-autovalid.form-select:valid{
+  border-color: var(--bs-border-color) !important;
+  box-shadow: none !important;
+  /* pastikan panah tetap ada (tanpa icon centang) */
+  background-image: var(--bs-form-select-bg-img), var(--bs-form-select-bg-icon) !important;
+}
+
+/* ========= CETAK ========= */
 @media print{
   @page{ margin:10mm; }
   body *{ visibility:hidden !important; }

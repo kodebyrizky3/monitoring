@@ -93,6 +93,9 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
                 // Download ulang QR (PNG)
                 $routes->get('(:num)/qr/download', 'Admin\AcUnits::downloadQr/$1', ['as' => 'admin.ac.qr.download']);
+                
+                 // **EXPORT**
+                $routes->get('export', 'Admin\AcUnits::export', ['as' => 'admin.ac.export']);
             });
         });
 

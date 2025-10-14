@@ -7,7 +7,10 @@
       <div class="card-body">
         <h2 class="h6 mb-3">Detail Perangkat</h2>
 
-        <form id="formQR" class="row g-3 needs-validation" novalidate
+        <!-- Tambah class prevent-autogreen & matikan autofill -->
+        <form id="formQR"
+              class="row g-3 needs-validation prevent-autogreen"
+              novalidate autocomplete="off"
               data-save-url="<?= site_url('admin/qr/save') ?>">
           <?= csrf_field() ?>
 
@@ -19,39 +22,41 @@
 
           <div class="col-6">
             <label class="form-label">Merek</label>
-            <input name="merek" class="form-control" placeholder="Daikin" maxlength="50">
+            <!-- field opsional → tambahkan class no-autovalid bila tidak ingin centang otomatis -->
+            <input name="merek" class="form-control no-autovalid" placeholder="Daikin" maxlength="50">
           </div>
           <div class="col-6">
             <label class="form-label">Model</label>
-            <input name="model" class="form-control" placeholder="FTKC25U" maxlength="50">
+            <input name="model" class="form-control no-autovalid" placeholder="FTKC25U" maxlength="50">
           </div>
 
           <div class="col-6">
             <label class="form-label">Serial No</label>
-            <input name="serial_no" class="form-control" placeholder="SN12345" maxlength="100">
+            <input name="serial_no" class="form-control no-autovalid" placeholder="SN12345" maxlength="100">
           </div>
           <div class="col-6">
             <label class="form-label">Lokasi</label>
-            <input name="lokasi" class="form-control" placeholder="Lantai 2 - Ruang Rapat" maxlength="120">
+            <input name="lokasi" class="form-control no-autovalid" placeholder="Lantai 2 - Ruang Rapat" maxlength="120">
           </div>
 
           <div class="col-6">
             <label class="form-label">Kapasitas (BTU)</label>
-            <input name="kapasitas_btu" id="kapasitas_btu" class="form-control"
+            <input name="kapasitas_btu" id="kapasitas_btu" class="form-control no-autovalid"
                    placeholder="12000" inputmode="numeric" pattern="\d*" maxlength="7">
             <div class="form-text">Hanya angka (contoh: 12000)</div>
           </div>
 
           <div class="col-6">
             <label class="form-label">Nomor BMN</label>
-            <input name="bmn_no_display" id="bmn_no_display" class="form-control"
+            <input name="bmn_no_display" id="bmn_no_display" class="form-control no-autovalid"
                    placeholder="1234567890" inputmode="numeric" pattern="\d*" maxlength="30">
             <div class="form-text">Hanya angka (0–9).</div>
           </div>
 
           <div class="col-12">
             <label class="form-label">Status AC</label>
-            <select name="status" id="status" class="form-select">
+            <!-- no-autovalid untuk menonaktifkan "centang hijau" default -->
+            <select name="status" id="status" class="form-select no-autovalid">
               <option value="NORMAL" selected>NORMAL</option>
               <option value="RUSAK_RINGAN">Rusak Ringan</option>
               <option value="RUSAK_BERAT">Rusak Berat</option>
@@ -82,8 +87,9 @@
           <div class="col-12">
             <label class="form-label">Base URL publik</label>
             <input name="base" id="baseUrl" class="form-control" value="<?= rtrim(site_url(), '/') ?>"
-                   pattern="https?://.+" required>
+                   pattern="https?://.+" required placeholder="https://domainmu.com">
             <div class="form-text">Contoh: https://domainmu.com</div>
+            <div class="invalid-feedback">Format URL tidak valid.</div>
           </div>
 
           <div class="col-12 d-grid d-sm-flex gap-2 mt-2">

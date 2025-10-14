@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.0.6">
+<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.1.0">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -94,9 +94,14 @@
       </div>
 
       <div class="col-12 col-lg-2 d-flex align-items-end">
-        <a href="<?= route_to('admin.ac.add') ?>" class="btn btn-primary ms-auto">
-          <i class="bi bi-qr-code-scan me-1"></i> Tambah via QR
-        </a>
+        <div class="toolbar-actions ms-auto">
+          <a href="<?= route_to('admin.ac.add') ?>" class="btn btn-qr-add" title="Tambah via QR">
+            <i class="bi bi-qr-code-scan"></i><span>Tambah via QR</span>
+          </a>
+          <button type="button" id="btnExport" class="btn btn-export-excel" title="Export ke Excel">
+            <i class="bi bi-file-earmark-excel"></i><span>Export Excel</span>
+          </button>
+        </div>
       </div>
     </form>
     <div id="liveInfo" class="small text-muted mt-2"></div>
@@ -140,8 +145,7 @@
               <td class="col-lokasi"><?= esc($r['lokasi']) ?></td>
               <td><span class="badge bg-<?= $badge ?>"><?= esc($st) ?></span></td>
               <td class="text-end col-aksi">
-                <!-- GANTI: bukan btn-group lagi, pakai flex-wrap biasa -->
-                <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
+                <div class="action-wrap">
                   <a class="btn btn-outline-secondary btn-sm" href="<?= route_to('admin.ac.show',$r['id']) ?>" title="Detail"><i class="bi bi-eye"></i></a>
                   <a class="btn btn-outline-primary btn-sm"  href="<?= route_to('admin.ac.edit',$r['id']) ?>" title="Edit"><i class="bi bi-pencil"></i></a>
                   <a class="btn btn-outline-success btn-sm"  href="<?= route_to('admin.ac.qr.download',$r['id']) ?>" title="Unduh QR"><i class="bi bi-download"></i></a>
@@ -173,12 +177,12 @@
 <script>
   window.APP = {
     acSearch: '<?= rtrim(base_url('admin/data-alat/ac/search'), '/') ?>',
+    acExport: '<?= rtrim(base_url('admin/data-alat/ac/export'), '/') ?>', // endpoint export (pastikan route + controller ada)
     flash: {
       ok:  <?= json_encode(session()->getFlashdata('ok')  ?? '') ?>,
       err: <?= json_encode(session()->getFlashdata('err') ?? '') ?>,
     }
   };
 </script>
-<!-- kalau tabel juga dirender via JS, pastikan versinya kebaca baru -->
-<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.4.5"></script>
+<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.4.7"></script>
 <?= $this->endSection() ?>

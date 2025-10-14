@@ -135,6 +135,32 @@
       el?.addEventListener('blur', () => { el.value = (el.value || '').replace(/\s+/g, ' ').trim(); });
     });
 
+    // ======== Soft validation per-field (touched rule)
+    if (form){
+      const fields = Array.from(form.querySelectorAll('input,select,textarea'));
+      const touched = new WeakSet();
+
+      const paint = (el) => {
+        // netralkan yang kosong (tidak kasih centang)
+        const val = (el.value || '').trim();
+        if (!val && !el.required){
+          el.classList.remove('is-valid','is-invalid');
+          return;
+        }
+        // jika ada value atau required → cek validity
+        const ok = el.checkValidity();
+        el.classList.toggle('is-valid',   touched.has(el) && ok);
+        el.classList.toggle('is-invalid', touched.has(el) && !ok);
+      };
+
+      fields.forEach(el=>{
+        el.addEventListener('input', () => { touched.add(el); paint(el); });
+        el.addEventListener('blur',  () => { touched.add(el); paint(el); });
+        // state awal netral
+        el.classList.remove('is-valid','is-invalid');
+      });
+    }
+
     // ======== Badge status
     function labelStatus(code){
       switch (code) {
@@ -161,7 +187,16 @@
     // ======== SUBMIT
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if (!form.checkValidity()) { form.classList.add('was-validated'); return; }
+
+      // tampilkan validasi bootstrap hanya jika ada yang invalid
+      if (!form.checkValidity()) {
+        form.classList.add('was-validated'); // akan memunculkan merah untuk yang salah
+        return;
+      } else {
+        // jika valid semua, bersihkan state validasi supaya tidak ada "centang hijau" nyangkut
+        form.classList.remove('was-validated');
+        form.querySelectorAll('.is-valid,.is-invalid').forEach(el=>el.classList.remove('is-valid','is-invalid'));
+      }
 
       const fd     = new FormData(form);
       const nama   = (fd.get('nama')      || '').toString().trim();
@@ -273,8 +308,9 @@
 
         alertBox?.classList.add('d-none');
         form?.classList.remove('was-validated');
-        // reset select status ke default (NORMAL)
+        form?.querySelectorAll('.is-valid,.is-invalid').forEach(el=>el.classList.remove('is-valid','is-invalid'));
         statusSel && (statusSel.value = 'NORMAL');
+
         try { sessionStorage.removeItem('lastQR'); } catch {}
       } catch (e) {
         console.error('Reset UI error:', e);

@@ -270,6 +270,102 @@ class AcUnits extends BaseController
         return $this->response->download($diskFile, null)->setFileName($safeName);
     }
 
+    /* ====== EXPORT EXCEL / CSV (ikut filter) ====== */
+    public function export()
+    {
+        $q      = trim($this->request->getGet('q') ?? '');
+        $status = trim($this->request->getGet('status') ?? '');
+
+        $m = new AcUnitModel();
+        $b = $m->select('id,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac')
+               ->orderBy('id','DESC');
+
+        if ($q !== '') {
+            $b = $b->groupStart()
+                   ->like('nomor_unik', $q)
+                   ->orLike('tipe_model', $q)
+                   ->orLike('kapasitas_btu', $q)
+                   ->orLike('bmn_no_display', $q)
+                   ->orLike('lokasi', $q)
+                 ->groupEnd();
+        }
+        if ($status !== '' && in_array($status, self::ALLOWED_STATUS, true)) {
+            $b = $b->where('status_ac', $status);
+        }
+
+        $rows = $b->get()->getResultArray() ?? [];
+
+        $headers = ['ID','Nama','Tipe/Model','Kapasitas (BTU)','No. BMN','Lokasi','Status'];
+        $data = array_map(static function(array $r){
+            return [
+                'ID'              => (int)($r['id'] ?? 0),
+                'Nama'            => (string)($r['nomor_unik'] ?? ''),
+                'Tipe/Model'      => (string)($r['tipe_model'] ?? ''),
+                'Kapasitas (BTU)' => (string)($r['kapasitas_btu'] ?? ''),
+                'No. BMN'         => (string)($r['bmn_no_display'] ?? ''),
+                'Lokasi'          => (string)($r['lokasi'] ?? ''),
+                'Status'          => (string)($r['status_ac'] ?? ''),
+            ];
+        }, $rows);
+
+        $filenameBase = 'data-ac-'.date('Ymd-His');
+
+        // XLSX jika PhpSpreadsheet tersedia
+        if (class_exists('\\PhpOffice\\PhpSpreadsheet\\Spreadsheet')) {
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('AC Units');
+
+            // Header
+            $col=1;
+            foreach ($headers as $h) { $sheet->setCellValueByColumnAndRow($col++, 1, $h); }
+            $sheet->getStyle('A1:G1')->getFont()->setBold(true);
+
+            // Rows
+            $rnum = 2;
+            foreach ($data as $row) {
+                $col = 1;
+                foreach ($headers as $h) {
+                    $sheet->setCellValueByColumnAndRow($col++, $rnum, $row[$h] ?? '');
+                }
+                $rnum++;
+            }
+
+            // Wrap & autosize
+            $last = max(1, $rnum-1);
+            $sheet->getStyle("A1:G{$last}")->getAlignment()->setWrapText(true);
+            foreach (range('A','G') as $c) { $sheet->getColumnDimension($c)->setAutoSize(true); }
+            $sheet->freezePane('A2');
+
+            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+            ob_start(); $writer->save('php://output'); $bin = ob_get_clean();
+
+            return $this->response
+                ->setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ->setHeader('Content-Disposition','attachment; filename="'.$filenameBase.'.xlsx"')
+                ->setBody($bin);
+        }
+
+        // Fallback CSV (pakai BOM biar Excel Windows aman UTF-8)
+        $fh = fopen('php://temp', 'r+');
+        // BOM
+        fwrite($fh, chr(0xEF).chr(0xBB).chr(0xBF));
+        fputcsv($fh, $headers);
+        foreach ($data as $row) {
+            $line = [];
+            foreach ($headers as $h) { $line[] = $row[$h] ?? ''; }
+            fputcsv($fh, $line);
+        }
+        rewind($fh);
+        $csv = stream_get_contents($fh);
+        fclose($fh);
+
+        return $this->response
+            ->setHeader('Content-Type','text/csv; charset=utf-8')
+            ->setHeader('Content-Disposition','attachment; filename="'.$filenameBase.'.csv"')
+            ->setBody($csv);
+    }
+
     /* ================== Helpers ================== */
 
     /** angka kartu */

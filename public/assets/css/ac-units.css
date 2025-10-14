@@ -1,4 +1,4 @@
-/* ====== Kartu Statistik (biarin) ====== */
+/* ====== Kartu Statistik ====== */
 .card-stat{ border:0; border-radius:.9rem; color:#fff; }
 .card-stat .card-body{ display:flex; justify-content:space-between; align-items:flex-start; min-height:110px; }
 .stat-title{ font-size:.9rem; opacity:.9; margin-bottom:.25rem; }
@@ -6,34 +6,69 @@
 .stat-sub{ font-size:.9rem; opacity:.9; margin-top:.35rem; }
 .stat-icon{ font-size:2.2rem; opacity:.9; align-self:center; }
 
-/* ====== Tabel Data AC (tanpa horizontal scroll, header rapi) ====== */
-.emp-table{ table-layout: fixed; width:100%; border-collapse:separate; border-spacing:0; }
-.emp-table thead th{
-  white-space: nowrap;    /* header jangan pecah */
-  font-weight: 600;
+/* ====== Toolbar Actions (QR + Export Excel) ====== */
+.toolbar-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  justify-content:flex-end;
 }
-.emp-table tbody td{
-  white-space: normal;    /* isi boleh wrap */
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  vertical-align: top;
-  line-height: 1.3;
-  padding-top: .65rem;
-  padding-bottom: .65rem;
+.toolbar-actions .btn{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  padding:.45rem .75rem;
+  line-height:1.2;
+}
+.toolbar-actions .btn .bi{ font-size:1rem; }
+
+/* Variasi warna biar jelas */
+.btn-qr-add{
+  background:#0d6efd; border-color:#0d6efd; color:#fff;
+}
+.btn-qr-add:hover{
+  background:#0b5ed7; border-color:#0a58ca; color:#fff;
+}
+.btn-export-excel{
+  background:#198754; border-color:#198754; color:#fff;
+}
+.btn-export-excel:hover{
+  background:#157347; border-color:#146c43; color:#fff;
 }
 
-/* kolom fixed width agar kolom teks punya ruang wrap */
+/* Stack tombol di layar kecil */
+@media (max-width: 576px){
+  .toolbar-actions .btn{ flex:1 0 100%; justify-content:center; }
+}
+
+/* ====== Tabel Data AC (tanpa horizontal scroll) ====== */
+.emp-table{ table-layout:fixed; width:100%; border-collapse:separate; border-spacing:0; }
+.emp-table thead th{
+  white-space:nowrap;   /* header jangan pecah */
+  font-weight:600;
+}
+.emp-table tbody td{
+  white-space:normal;   /* isi boleh wrap */
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  vertical-align:top;
+  line-height:1.3;
+  padding-top:.65rem;
+  padding-bottom:.65rem;
+}
+
+/* kolom fixed width agar kolom teks bisa wrap dengan rapi */
 .emp-table .col-id{ width:64px; }
 .emp-table .col-btu{ width:140px; }
 .emp-table .col-status{ width:140px; }
 
-/* kolom berpotensi panjang → batasi agar memicu wrap */
-.emp-table .col-nama{   max-width: 280px; }
-.emp-table .col-tipe{   max-width: 280px; }
-.emp-table .col-bmn{    max-width: 220px; }
-.emp-table .col-lokasi{ max-width: 360px; }
+/* kolom panjang → batasi agar memicu wrap */
+.emp-table .col-nama{   max-width:280px; }
+.emp-table .col-tipe{   max-width:280px; }
+.emp-table .col-bmn{    max-width:220px; }
+.emp-table .col-lokasi{ max-width:360px; }
 
-/* kolom Aksi – flex wrap, tidak overflow */
+/* Kolom Aksi – flex wrap, tidak overflow */
 .emp-table .col-aksi{ width:160px; }
 .emp-table .col-aksi .action-wrap{
   display:flex;

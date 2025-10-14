@@ -1,4 +1,4 @@
-// public/assets/js-admin/ac-units.js  (v1.4.6)
+// public/assets/js-admin/ac-units.js  (v1.4.7)
 (function(){
   'use strict';
 
@@ -10,6 +10,7 @@
   const qInput  = document.getElementById('qInput');
   const stSel   = document.getElementById('statusSelect');
   const perSel  = document.getElementById('perPageSelect');
+  const exportBtn = document.getElementById('btnExport');
 
   let inflightController = null;
   let reqSeq = 0;
@@ -131,7 +132,6 @@
         return `<span class="badge bg-${m[st]||'secondary'}">${escapeHtml(st||'')}</span>`;
       };
 
-      // RENDER TANPA KOLOM QR + kolom AKSI pakai flex-wrap
       tbody.innerHTML = rows.length ? rows.map(r=>`
         <tr>
           <td class="col-id">${r.id}</td>
@@ -162,10 +162,18 @@
     }
   }
 
-  // Events
+  // Events: filter & pagination
   qInput && qInput.addEventListener('input', debounce(()=>{ state.q=qInput.value||''; state.page=1; fetchList(); }, 250));
   stSel  && stSel.addEventListener('change', ()=>{ state.status=stSel.value||''; state.page=1; fetchList(); });
   perSel && perSel.addEventListener('change', ()=>{ state.perPage=parseInt(perSel.value||'10',10); state.page=1; fetchList(); });
+
+  // Export (ikut filter aktif)
+  exportBtn?.addEventListener('click', ()=>{
+    const u = new URL(window.APP?.acExport || '/admin/data-alat/ac/export', window.location.origin);
+    u.searchParams.set('q', state.q || '');
+    u.searchParams.set('status', state.status || '');
+    window.location.href = u.toString();
+  });
 
   // Flash → Swal
   (function showFlash(){
