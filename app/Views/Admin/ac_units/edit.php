@@ -17,9 +17,10 @@
     <div class="card shadow-sm">
       <div class="card-body">
         <div class="row g-3">
+          <!-- Nama / Merek / Model -->
           <div class="col-md-6">
             <label class="form-label">Nama Perangkat</label>
-            <input name="nomor_unik" class="form-control" value="<?= esc($row['nomor_unik']) ?>" required>
+            <input name="nomor_unik" class="form-control" value="<?= esc($row['nomor_unik'] ?? '') ?>" required>
           </div>
           <div class="col-md-3">
             <label class="form-label">Merek</label>
@@ -29,26 +30,36 @@
             <label class="form-label">Model</label>
             <input name="model" class="form-control" value="<?= esc($model ?? '') ?>">
           </div>
+
+          <!-- SN / BTU / BMN -->
           <div class="col-md-4">
             <label class="form-label">Serial Number</label>
-            <input name="sn" class="form-control" value="<?= esc($sn ?? '') ?>">
+            <input name="serial_no" class="form-control" value="<?= esc($row['serial_no'] ?? ($sn ?? '')) ?>">
           </div>
+          <div class="col-md-4">
+            <label class="form-label">Kapasitas (BTU)</label>
+            <input name="kapasitas_btu" class="form-control" placeholder="9000 / 12000 / 18000" value="<?= esc($row['kapasitas_btu'] ?? '') ?>">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Nomor BMN</label>
+            <input name="bmn_no_display" class="form-control" value="<?= esc($row['bmn_no_display'] ?? '') ?>">
+          </div>
+
+          <!-- Lokasi / Status -->
           <div class="col-md-8">
             <label class="form-label">Lokasi</label>
-            <input name="lokasi" class="form-control" value="<?= esc($row['lokasi']) ?>">
+            <input name="lokasi" class="form-control" value="<?= esc($row['lokasi'] ?? '') ?>">
           </div>
           <div class="col-md-4">
             <label class="form-label">Status</label>
             <select name="status_ac" class="form-select">
-              <option value="NORMAL" <?= $row['status_ac']==='NORMAL'?'selected':'' ?>>Normal</option>
-              <option value="MENUNGGU_PERBAIKAN" <?= $row['status_ac']==='MENUNGGU_PERBAIKAN'?'selected':'' ?>>Menunggu Perbaikan</option>
-              <option value="DALAM_PERBAIKAN" <?= $row['status_ac']==='DALAM_PERBAIKAN'?'selected':'' ?>>Dalam Perbaikan</option>
+              <option value="NORMAL"        <?= ($row['status_ac'] ?? '')==='NORMAL'?'selected':'' ?>>NORMAL</option>
+              <option value="RUSAK_RINGAN"  <?= ($row['status_ac'] ?? '')==='RUSAK_RINGAN'?'selected':'' ?>>RUSAK RINGAN</option>
+              <option value="RUSAK_BERAT"   <?= ($row['status_ac'] ?? '')==='RUSAK_BERAT'?'selected':'' ?>>RUSAK BERAT</option>
             </select>
           </div>
-          <div class="col-12">
-            <label class="form-label">Catatan</label>
-            <textarea name="catatan" class="form-control" rows="3"><?= esc($row['catatan'] ?? '') ?></textarea>
-          </div>
+
+          <!-- (Catatan dihilangkan sesuai permintaan) -->
         </div>
       </div>
     </div>
@@ -66,7 +77,7 @@
       <div class="card-body">
         <div id="imgBox" class="mb-2">
           <?php if (!empty($photoUrl)): ?>
-            <img id="preview" src="<?= $photoUrl ?>" class="img-fluid rounded border" alt="Foto AC">
+            <img id="preview" src="<?= esc($photoUrl) ?>" class="img-fluid rounded border" alt="Foto AC">
           <?php else: ?>
             <img id="preview" src="" class="img-fluid rounded border d-none" alt="Foto AC">
             <div class="text-muted">Belum ada foto.</div>

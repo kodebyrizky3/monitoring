@@ -1,11 +1,55 @@
-/* public/assets/css/ac-units.css */
+/* ====== Kartu Statistik (biarin) ====== */
 .card-stat{ border:0; border-radius:.9rem; color:#fff; }
 .card-stat .card-body{ display:flex; justify-content:space-between; align-items:flex-start; min-height:110px; }
-.card-stat .stat-title{ font-size:.95rem; opacity:.9; margin-bottom:.25rem; }
-.card-stat .stat-value{ font-size:2.1rem; font-weight:700; line-height:1; }
-.card-stat .stat-sub{ font-size:.9rem; opacity:.9; margin-top:.35rem; }
-.card-stat .stat-icon{ font-size:2.5rem; opacity:.9; align-self:center; }
-.card-waiting{ background: linear-gradient(135deg,#f7b500,#f5a000); color:#1f2a37; }
-.card-progress{ background: linear-gradient(135deg,#06b6d4,#0ea5e9); color:#06223b; }
-.card-normal{ background: linear-gradient(135deg,#16a34a,#22c55e); color:#05230f; }
-.ac-table th,.ac-table td{ white-space:nowrap; }
+.stat-title{ font-size:.9rem; opacity:.9; margin-bottom:.25rem; }
+.stat-value{ font-size:2rem; font-weight:700; line-height:1; }
+.stat-sub{ font-size:.9rem; opacity:.9; margin-top:.35rem; }
+.stat-icon{ font-size:2.2rem; opacity:.9; align-self:center; }
+
+/* ====== Tabel Data AC (tanpa horizontal scroll, header rapi) ====== */
+.emp-table{ table-layout: fixed; width:100%; border-collapse:separate; border-spacing:0; }
+.emp-table thead th{
+  white-space: nowrap;    /* header jangan pecah */
+  font-weight: 600;
+}
+.emp-table tbody td{
+  white-space: normal;    /* isi boleh wrap */
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+  line-height: 1.3;
+  padding-top: .65rem;
+  padding-bottom: .65rem;
+}
+
+/* kolom fixed width agar kolom teks punya ruang wrap */
+.emp-table .col-id{ width:64px; }
+.emp-table .col-btu{ width:140px; }
+.emp-table .col-status{ width:140px; }
+
+/* kolom berpotensi panjang → batasi agar memicu wrap */
+.emp-table .col-nama{   max-width: 280px; }
+.emp-table .col-tipe{   max-width: 280px; }
+.emp-table .col-bmn{    max-width: 220px; }
+.emp-table .col-lokasi{ max-width: 360px; }
+
+/* kolom Aksi – flex wrap, tidak overflow */
+.emp-table .col-aksi{ width:160px; }
+.emp-table .col-aksi .action-wrap{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.25rem;
+  justify-content:flex-end;
+}
+.emp-table .col-aksi .action-wrap .btn{
+  padding:.25rem .5rem;
+  line-height:1.2;
+  flex:0 0 auto;
+}
+
+/* jaga-jaga kalau ada <code> panjang, tetap wrap */
+.emp-table td code{ white-space:normal; word-break:break-all; }
+
+/* sentuhan kecil */
+.table-hover>tbody>tr:hover>*{ background-color:#f8fafc; }
+.badge{ font-weight:600; }

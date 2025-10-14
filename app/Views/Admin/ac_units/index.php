@@ -1,15 +1,7 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<style>
-  .card-stat{ border:0; border-radius:.9rem; color:#fff; }
-  .card-stat .card-body{ min-height:110px; display:flex; justify-content:space-between; align-items:flex-start; }
-  .card-stat .stat-title{ font-size:.9rem; opacity:.9; margin-bottom:.25rem; }
-  .card-stat .stat-value{ font-size:2rem; font-weight:700; line-height:1; }
-  .card-stat .stat-sub{ font-size:.9rem; opacity:.9; margin-top:.35rem; }
-  .card-stat .stat-icon{ font-size:2.2rem; opacity:.9; align-self:center; }
-  .emp-table th,.emp-table td{ white-space:nowrap; }
-</style>
+<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.0.6">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -33,24 +25,24 @@
     <div class="card shadow-sm card-stat bg-warning text-dark">
       <div class="card-body">
         <div>
-          <div class="stat-title">Menunggu Perbaikan</div>
-          <div class="stat-value" id="statPending"><?= (int)($stats['pending'] ?? 0) ?></div>
-          <div class="stat-sub">butuh tindakan</div>
+          <div class="stat-title">Rusak Ringan</div>
+          <div class="stat-value" id="statRingan"><?= (int)($stats['ringan'] ?? 0) ?></div>
+          <div class="stat-sub">butuh perhatian</div>
         </div>
-        <i class="bi bi-hourglass-split stat-icon"></i>
+        <i class="bi bi-exclamation-triangle stat-icon"></i>
       </div>
     </div>
   </div>
 
   <div class="col-12 col-xl-3 col-md-6">
-    <div class="card shadow-sm card-stat bg-info">
+    <div class="card shadow-sm card-stat bg-danger">
       <div class="card-body">
         <div>
-          <div class="stat-title">Dalam Perbaikan</div>
-          <div class="stat-value" id="statProgress"><?= (int)($stats['progress'] ?? 0) ?></div>
-          <div class="stat-sub">sedang dikerjakan</div>
+          <div class="stat-title">Rusak Berat</div>
+          <div class="stat-value" id="statBerat"><?= (int)($stats['berat'] ?? 0) ?></div>
+          <div class="stat-sub">prioritas tinggi</div>
         </div>
-        <i class="bi bi-tools stat-icon"></i>
+        <i class="bi bi-x-octagon stat-icon"></i>
       </div>
     </div>
   </div>
@@ -78,7 +70,7 @@
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
           <input type="text" id="qInput" class="form-control"
-                 placeholder="QR / Nama / Tipe / Lokasi">
+                 placeholder="Nama / Tipe / Kapasitas / BMN / Lokasi">
         </div>
       </div>
 
@@ -86,8 +78,8 @@
         <label class="form-label">Status</label>
         <select id="statusSelect" class="form-select">
           <option value="">Semua</option>
-          <option value="MENUNGGU_PERBAIKAN">Menunggu Perbaikan</option>
-          <option value="DALAM_PERBAIKAN">Dalam Perbaikan</option>
+          <option value="RUSAK_RINGAN">Rusak Ringan</option>
+          <option value="RUSAK_BERAT">Rusak Berat</option>
           <option value="NORMAL">Normal</option>
         </select>
       </div>
@@ -122,34 +114,40 @@
       <table class="table table-striped align-middle mb-0 emp-table">
         <thead class="table-light">
           <tr>
-            <th style="width:70px;">ID</th>
-            <th>QR</th>
-            <th>Nama</th>
-            <th>Tipe/Model</th>
-            <th>Lokasi</th>
-            <th>Status</th>
-            <th style="width:160px;" class="text-end">Aksi</th>
+            <th class="col-id">ID</th>
+            <th class="col-nama">Nama</th>
+            <th class="col-tipe">Tipe/Model</th>
+            <th class="col-btu">Kapasitas (BTU)</th>
+            <th class="col-bmn">No. BMN</th>
+            <th class="col-lokasi">Lokasi</th>
+            <th class="col-status">Status</th>
+            <th class="col-aksi text-end">Aksi</th>
           </tr>
         </thead>
         <tbody id="acTbody">
           <?php if (empty($rows ?? [])): ?>
-            <tr><td colspan="7" class="text-center text-muted">Belum ada data.</td></tr>
-          <?php else: foreach ($rows as $r): ?>
+            <tr><td colspan="8" class="text-center text-muted">Belum ada data.</td></tr>
+          <?php else: foreach ($rows as $r):
+            $st = (string)($r['status_ac'] ?? '');
+            $badge = ['NORMAL'=>'success','RUSAK_RINGAN'=>'warning','RUSAK_BERAT'=>'danger'][$st] ?? 'secondary';
+          ?>
             <tr>
               <td><?= esc($r['id']) ?></td>
-              <td><code><?= esc($r['kode_qr']) ?></code></td>
-              <td><?= esc($r['nomor_unik']) ?></td>
-              <td><?= esc($r['tipe_model']) ?></td>
-              <td><?= esc($r['lokasi']) ?></td>
-              <td><span class="badge bg-secondary"><?= esc($r['status_ac']) ?></span></td>
-              <td class="text-end">
-                <div class="btn-group btn-group-sm">
-                  <a class="btn btn-outline-secondary" href="<?= route_to('admin.ac.show',$r['id']) ?>"><i class="bi bi-eye"></i></a>
-                  <a class="btn btn-outline-primary" href="<?= route_to('admin.ac.edit',$r['id']) ?>"><i class="bi bi-pencil"></i></a>
-                  <a class="btn btn-outline-success" href="<?= route_to('admin.ac.qr.download',$r['id']) ?>"><i class="bi bi-download"></i></a>
-                  <button class="btn btn-outline-danger btn-delete"
+              <td class="col-nama"><?= esc($r['nomor_unik']) ?></td>
+              <td class="col-tipe"><?= esc($r['tipe_model']) ?></td>
+              <td><?= esc($r['kapasitas_btu'] ?? '-') ?></td>
+              <td class="col-bmn"><?= esc($r['bmn_no_display'] ?? '-') ?></td>
+              <td class="col-lokasi"><?= esc($r['lokasi']) ?></td>
+              <td><span class="badge bg-<?= $badge ?>"><?= esc($st) ?></span></td>
+              <td class="text-end col-aksi">
+                <!-- GANTI: bukan btn-group lagi, pakai flex-wrap biasa -->
+                <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
+                  <a class="btn btn-outline-secondary btn-sm" href="<?= route_to('admin.ac.show',$r['id']) ?>" title="Detail"><i class="bi bi-eye"></i></a>
+                  <a class="btn btn-outline-primary btn-sm"  href="<?= route_to('admin.ac.edit',$r['id']) ?>" title="Edit"><i class="bi bi-pencil"></i></a>
+                  <a class="btn btn-outline-success btn-sm"  href="<?= route_to('admin.ac.qr.download',$r['id']) ?>" title="Unduh QR"><i class="bi bi-download"></i></a>
+                  <button class="btn btn-outline-danger btn-sm btn-delete"
                           data-url="<?= route_to('admin.ac.delete',$r['id']) ?>"
-                          data-name="<?= esc($r['nomor_unik']) ?>"><i class="bi bi-trash"></i></button>
+                          data-name="<?= esc($r['nomor_unik']) ?>" title="Hapus"><i class="bi bi-trash"></i></button>
                 </div>
               </td>
             </tr>
@@ -181,5 +179,6 @@
     }
   };
 </script>
-<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.3.0"></script>
+<!-- kalau tabel juga dirender via JS, pastikan versinya kebaca baru -->
+<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.4.5"></script>
 <?= $this->endSection() ?>

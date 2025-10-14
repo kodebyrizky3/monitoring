@@ -9,18 +9,20 @@ use CodeIgniter\Database\Exceptions\DatabaseException;
 
 class AcUnits extends BaseController
 {
+    private const ALLOWED_STATUS = ['NORMAL','RUSAK_RINGAN','RUSAK_BERAT'];
+
     /* LIST (render awal + angka kartu) */
     public function index()
     {
         $AC   = new AcUnitModel();
-        $list = $AC->select('id,kode_qr,nomor_unik,tipe_model,lokasi,status_ac')
+        $list = $AC->select('id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac')
                    ->orderBy('id','DESC')->findAll(10);
 
         return view('Admin/ac_units/index', [
             'title'      => 'Data Alat · AC',
             'activeMenu' => 'ac.list',
             'rows'       => $list,
-            'stats'      => $this->calcStats(),  // <-- angka kartu
+            'stats'      => $this->calcStats(),
         ]);
     }
 
@@ -34,7 +36,7 @@ class AcUnits extends BaseController
         $offset  = ($page - 1) * $perPage;
 
         $m = new AcUnitModel();
-        $b = $m->select('id,kode_qr,nomor_unik,tipe_model,lokasi,status_ac')
+        $b = $m->select('id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac')
                ->orderBy('id','DESC');
 
         if ($q !== '') {
@@ -42,10 +44,12 @@ class AcUnits extends BaseController
                     ->like('kode_qr', $q)
                     ->orLike('nomor_unik', $q)
                     ->orLike('tipe_model', $q)
+                    ->orLike('kapasitas_btu', $q)
+                    ->orLike('bmn_no_display', $q)
                     ->orLike('lokasi', $q)
                  ->groupEnd();
         }
-        if ($status !== '') {
+        if ($status !== '' && in_array($status, self::ALLOWED_STATUS, true)) {
             $b = $b->where('status_ac', $status);
         }
 
@@ -60,16 +64,18 @@ class AcUnits extends BaseController
         $data = array_map(static function(array $r){
             $id = (int)$r['id'];
             return [
-                'id'         => $id,
-                'kode_qr'    => (string)($r['kode_qr'] ?? ''),
-                'nomor_unik' => (string)($r['nomor_unik'] ?? ''),
-                'tipe_model' => (string)($r['tipe_model'] ?? ''),
-                'lokasi'     => (string)($r['lokasi'] ?? ''),
-                'status_ac'  => (string)($r['status_ac'] ?? ''),
-                'show_url'   => route_to('admin.ac.show', $id),
-                'edit_url'   => route_to('admin.ac.edit', $id),
-                'dl_qr_url'  => route_to('admin.ac.qr.download', $id),
-                'del_url'    => route_to('admin.ac.delete', $id),
+                'id'             => $id,
+                'kode_qr'        => (string)($r['kode_qr'] ?? ''),
+                'nomor_unik'     => (string)($r['nomor_unik'] ?? ''),
+                'tipe_model'     => (string)($r['tipe_model'] ?? ''),
+                'kapasitas_btu'  => (string)($r['kapasitas_btu'] ?? ''),
+                'bmn_no_display' => (string)($r['bmn_no_display'] ?? ''),
+                'lokasi'         => (string)($r['lokasi'] ?? ''),
+                'status_ac'      => (string)($r['status_ac'] ?? ''),
+                'show_url'       => route_to('admin.ac.show', $id),
+                'edit_url'       => route_to('admin.ac.edit', $id),
+                'dl_qr_url'      => route_to('admin.ac.qr.download', $id),
+                'del_url'        => route_to('admin.ac.delete', $id),
             ];
         }, $rows ?? []);
 
@@ -81,7 +87,7 @@ class AcUnits extends BaseController
             'page'      => (int)$page,
             'pageCount' => (int)ceil(max($total,1)/$perPage),
             'rows'      => $data,
-            'stats'     => $this->calcStats(), // <- kartu ikut ter-update
+            'stats'     => $this->calcStats(),
         ]);
     }
 
@@ -95,7 +101,7 @@ class AcUnits extends BaseController
         [$merek,$model] = $this->splitBrandModel($row['tipe_model'] ?? '');
         $sn = $this->extractSn($row['catatan'] ?? null);
 
-        $Rep     = new \App\Models\AcRepairModel();
+        $Rep     = new AcRepairModel();
         $repairs = $Rep->listByAc($id);
 
         return view('Admin/ac_units/show', [
@@ -131,7 +137,7 @@ class AcUnits extends BaseController
         ]);
     }
 
-    /* UPDATE (tanpa crop; bisa ganti/hapus foto AC) */
+    /* UPDATE (terima BTU & BMN; validasi status baru) */
     public function update(int $id)
     {
         if ($this->request->getMethod(true) !== 'POST') {
@@ -142,20 +148,26 @@ class AcUnits extends BaseController
         $row = $AC->find($id);
         if (!$row) return redirect()->route('admin.ac.index')->with('err','Data tidak ditemukan');
 
-        $nama   = trim((string)$this->request->getPost('nomor_unik'));
-        $merek  = trim((string)$this->request->getPost('merek'));
-        $model  = trim((string)$this->request->getPost('model'));
-        $sn     = trim((string)$this->request->getPost('sn'));
-        $lokasi = trim((string)$this->request->getPost('lokasi'));
-        $status = strtoupper(trim((string)$this->request->getPost('status_ac') ?: 'NORMAL'));
+        $nama    = trim((string)$this->request->getPost('nomor_unik'));
+        $merek   = trim((string)$this->request->getPost('merek'));
+        $model   = trim((string)$this->request->getPost('model'));
+        $sn      = trim((string)$this->request->getPost('sn'));
+        $lokasi  = trim((string)$this->request->getPost('lokasi'));
+        $btu     = trim((string)$this->request->getPost('kapasitas_btu'));
+        $bmn     = trim((string)$this->request->getPost('bmn_no_display'));
+        $status  = strtoupper(trim((string)$this->request->getPost('status_ac') ?: 'NORMAL'));
+
+        $statusFinal = in_array($status, self::ALLOWED_STATUS, true) ? $status : ($row['status_ac'] ?? 'NORMAL');
 
         $data = [
-            'id'         => $id,
-            'nomor_unik' => $nama ?: $row['nomor_unik'],
-            'tipe_model' => $this->buildBrandModel($merek,$model) ?: ($row['tipe_model'] ?? '-'),
-            'lokasi'     => $lokasi ?: ($row['lokasi'] ?? '-'),
-            'status_ac'  => in_array($status,['NORMAL','MENUNGGU_PERBAIKAN','DALAM_PERBAIKAN'],true) ? $status : ($row['status_ac'] ?? 'NORMAL'),
-            'catatan'    => $this->upsertSn($row['catatan'] ?? null, $sn),
+            'id'             => $id,
+            'nomor_unik'     => $nama ?: $row['nomor_unik'],
+            'tipe_model'     => $this->buildBrandModel($merek,$model) ?: ($row['tipe_model'] ?? '-'),
+            'kapasitas_btu'  => $btu !== '' ? $btu : ($row['kapasitas_btu'] ?? null),
+            'bmn_no_display' => $bmn !== '' ? $bmn : ($row['bmn_no_display'] ?? null),
+            'lokasi'         => $lokasi ?: ($row['lokasi'] ?? '-'),
+            'status_ac'      => $statusFinal,
+            'catatan'        => $this->upsertSn($row['catatan'] ?? null, $sn),
         ];
 
         try {
@@ -166,7 +178,7 @@ class AcUnits extends BaseController
             return redirect()->back()->withInput()->with('err','DB error: '.$e->getMessage());
         }
 
-        /* ====== FOTO AC ====== */
+        /* ====== FOTO AC (opsional) ====== */
         $dir = FCPATH.'uploads/ac_units/'.$id;
         $remove = (int)$this->request->getPost('remove_photo') === 1;
 
@@ -213,13 +225,13 @@ class AcUnits extends BaseController
         // bersihkan file
         $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
         if (!empty($row['kode_qr'])) {
-            @unlink(FCPATH.'uploads/qrcodes/'.$row['kode_qr'].'.png');
+            @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
         }
 
         return redirect()->route('admin.ac.index')->with('ok','Data berhasil dihapus');
     }
 
-    /* DOWNLOAD QR */
+    /* DOWNLOAD QR (generate kalau belum ada) */
     public function downloadQr(int $id)
     {
         $AC  = new AcUnitModel();
@@ -258,7 +270,7 @@ class AcUnits extends BaseController
         return $this->response->download($diskFile, null)->setFileName($safeName);
     }
 
-    /* ===== Helpers ===== */
+    /* ================== Helpers ================== */
 
     /** angka kartu */
     private function calcStats(): array
@@ -266,18 +278,18 @@ class AcUnits extends BaseController
         $db  = \Config\Database::connect();
         $row = $db->query("
             SELECT
-              COUNT(*)                                           AS total,
-              SUM(status_ac = 'MENUNGGU_PERBAIKAN')             AS pending,
-              SUM(status_ac = 'DALAM_PERBAIKAN')                AS progress,
-              SUM(status_ac = 'NORMAL')                         AS normal
+              COUNT(*)                                  AS total,
+              SUM(status_ac = 'RUSAK_RINGAN')           AS ringan,
+              SUM(status_ac = 'RUSAK_BERAT')            AS berat,
+              SUM(status_ac = 'NORMAL')                 AS normal
             FROM ac_units
         ")->getRowArray() ?: [];
 
         return [
-            'total'    => (int)($row['total']    ?? 0),
-            'pending'  => (int)($row['pending']  ?? 0),
-            'progress' => (int)($row['progress'] ?? 0),
-            'normal'   => (int)($row['normal']   ?? 0),
+            'total'   => (int)($row['total']   ?? 0),
+            'ringan'  => (int)($row['ringan']  ?? 0),
+            'berat'   => (int)($row['berat']   ?? 0),
+            'normal'  => (int)($row['normal']  ?? 0),
         ];
     }
 
@@ -297,6 +309,7 @@ class AcUnits extends BaseController
         $parts = preg_split('/\s+/', $t, 2);
         return [strtoupper($parts[0]??''), trim($parts[1]??'')];
     }
+
     private function buildBrandModel(string $merek,string $model): string
     {
         $m = trim($merek); $d = trim($model);
@@ -305,23 +318,26 @@ class AcUnits extends BaseController
         if ($m==='') return $d;
         return strtoupper($m).' '.$d;
     }
+
     private function extractSn(?string $catatan): string
     {
         if (!$catatan) return '';
         if (preg_match('/\bSN\s*=\s*([^\r\n]+)/i',$catatan,$m)) return trim($m[1]);
         return '';
     }
+
     private function upsertSn(?string $catatan,string $sn): ?string
     {
-        $sn = trim($sn);
+        $sn  = trim($sn);
         $cat = $catatan ? trim($catatan) : '';
         if ($sn==='') return $cat ?: null;
         if ($cat==='') return "SN=".$sn;
-        if (preg_match('/\bSN\s*=\s*[^\r\n]+/i',$cat)) return preg_replace('/\bSN\s*=\s*[^\r\n]+/i','SN='.$sn,$cat);
+        if (preg_match('/\bSN\s*=\s*[^\r\n]+/i',$cat)) {
+            return preg_replace('/\bSN\s*=\s*[^\r\n]+/i','SN='.$sn,$cat);
+        }
         return rtrim($cat)."\nSN=".$sn;
     }
 
-    /* FOTO helpers */
     private function findPhotoUrl(int $id): ?string
     {
         $dir = FCPATH.'uploads/ac_units/'.$id;
@@ -331,16 +347,20 @@ class AcUnits extends BaseController
         }
         return null;
     }
+
     private function deletePhotoFiles(string $dir): void
     {
         foreach (['jpg','jpeg','png','webp'] as $x) { @unlink($dir.'/main.'.$x); }
     }
+
     private function rrmdir(string $path): void
     {
         if (!is_dir($path)) return;
-        $it = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
+        $it    = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
         $files = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ($files as $f) { $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); }
+        foreach ($files as $f) {
+            $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+        }
         @rmdir($path);
     }
 }

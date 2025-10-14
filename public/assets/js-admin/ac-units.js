@@ -1,4 +1,4 @@
-// public/assets/js-admin/ac-units.js  (v1.3.0)
+// public/assets/js-admin/ac-units.js  (v1.4.6)
 (function(){
   'use strict';
 
@@ -38,10 +38,10 @@
   function updateCards(stats){
     if(!stats) return;
     const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.textContent = (val ?? 0); };
-    set('statTotal',    stats.total);
-    set('statPending',  stats.pending);
-    set('statProgress', stats.progress);
-    set('statNormal',   stats.normal);
+    set('statTotal',  stats.total);
+    set('statRingan', stats.ringan);
+    set('statBerat',  stats.berat);
+    set('statNormal', stats.normal);
   }
 
   function renderPager(){
@@ -93,7 +93,7 @@
 
         const form = document.getElementById('deleteForm');
         form.setAttribute('action', url);
-        form.submit(); // reload → flash → swal (lihat showFlash)
+        form.submit();
       };
     });
   }
@@ -117,7 +117,6 @@
       if(mySeq !== reqSeq) return;
       if(!res.ok || !json.success) throw new Error(json.message || 'Gagal memuat');
 
-      // update kartu
       updateCards(json.stats);
 
       const rows = json.rows || [];
@@ -128,28 +127,30 @@
       if(totalEl) totalEl.textContent = total;
 
       const badge = (st)=>{
-        const m = {'NORMAL':'success','MENUNGGU_PERBAIKAN':'warning','DALAM_PERBAIKAN':'info'};
+        const m = {'NORMAL':'success','RUSAK_RINGAN':'warning','RUSAK_BERAT':'danger'};
         return `<span class="badge bg-${m[st]||'secondary'}">${escapeHtml(st||'')}</span>`;
       };
 
+      // RENDER TANPA KOLOM QR + kolom AKSI pakai flex-wrap
       tbody.innerHTML = rows.length ? rows.map(r=>`
         <tr>
-          <td>${r.id}</td>
-          <td><code>${escapeHtml(r.kode_qr || '')}</code></td>
-          <td>${escapeHtml(r.nomor_unik || '')}</td>
-          <td>${escapeHtml(r.tipe_model || '')}</td>
-          <td>${escapeHtml(r.lokasi || '')}</td>
-          <td>${badge(r.status_ac)}</td>
-          <td class="text-end">
-            <div class="btn-group btn-group-sm">
-              <a class="btn btn-outline-secondary" href="${r.show_url}" title="Detail"><i class="bi bi-eye"></i></a>
-              <a class="btn btn-outline-primary"   href="${r.edit_url}" title="Edit"><i class="bi bi-pencil"></i></a>
-              <a class="btn btn-outline-success"   href="${r.dl_qr_url}" title="Unduh QR"><i class="bi bi-download"></i></a>
-              <button class="btn btn-outline-danger btn-delete" data-url="${r.del_url}" data-name="${escapeHtml(r.nomor_unik || '')}" title="Hapus"><i class="bi bi-trash"></i></button>
+          <td class="col-id">${r.id}</td>
+          <td class="col-nama">${escapeHtml(r.nomor_unik || '')}</td>
+          <td class="col-tipe">${escapeHtml(r.tipe_model || '')}</td>
+          <td class="col-btu">${escapeHtml(r.kapasitas_btu || '-')}</td>
+          <td class="col-bmn">${escapeHtml(r.bmn_no_display || '-')}</td>
+          <td class="col-lokasi">${escapeHtml(r.lokasi || '')}</td>
+          <td class="col-status">${badge(r.status_ac)}</td>
+          <td class="text-end col-aksi">
+            <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
+              <a class="btn btn-outline-secondary btn-sm" href="${r.show_url}" title="Detail"><i class="bi bi-eye"></i></a>
+              <a class="btn btn-outline-primary btn-sm"   href="${r.edit_url}" title="Edit"><i class="bi bi-pencil"></i></a>
+              <a class="btn btn-outline-success btn-sm"   href="${r.dl_qr_url}" title="Unduh QR"><i class="bi bi-download"></i></a>
+              <button class="btn btn-outline-danger btn-sm btn-delete" data-url="${r.del_url}" data-name="${escapeHtml(r.nomor_unik || '')}" title="Hapus"><i class="bi bi-trash"></i></button>
             </div>
           </td>
         </tr>
-      `).join('') : `<tr><td colspan="7" class="text-center text-muted">Tidak ada data.</td></tr>`;
+      `).join('') : `<tr><td colspan="8" class="text-center text-muted">Tidak ada data.</td></tr>`;
 
       renderPager();
       bindDelete();
@@ -178,8 +179,6 @@
   })();
 
   // Init
-  bindDelete();
   if(infoEl) infoEl.textContent='';
-  // Ambil data awal (sekalian segarkan angka kartu)
   fetchList();
 })();
