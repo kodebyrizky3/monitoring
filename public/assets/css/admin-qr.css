@@ -3,7 +3,7 @@
   background: var(--bs-body-bg);
   border-radius: 12px;
   position: relative;
-  overflow: hidden;                 /* badge/elemen tidak “keluar” */
+  overflow: hidden;
 }
 .status-badge{
   position: static;
@@ -13,7 +13,6 @@
 
 .photo-box img{ width:100%; height:auto; object-fit:cover; max-height:220px; }
 
-/* QR preview besar (kanan) */
 #qrWrap{
   min-height:280px;
   display:flex; align-items:center; justify-content:center;
@@ -26,25 +25,21 @@
 #qrWrap.is-empty + .mt-2,
 #qrWrap.is-empty + .mt-2 + .d-grid{ display:none !important; }
 
-/* Area QR kecil khusus cetak – disembunyikan di layar */
 .qr-in-card{ display:none; }
 .qr-in-card .qr-box{ width:30mm; height:30mm; display:grid; place-items:center; }
 .qr-in-card canvas,.qr-in-card img{
   width:30mm !important; height:30mm !important;
 }
 
-/* Key/Value list */
 .device-card .kv{ font-size:.92rem; }
 .device-card .kv .label{ color:var(--bs-secondary-color); }
 
-/* URL di card (layar) – singkat & ellipsis */
 .device-card .url-line{ display:flex; align-items:center; gap:.25rem; }
 .device-card .url-text{
   display:inline-block; max-width:100%;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 
-/* Dropzone */
 .dropzone{
   border:2px dashed var(--bs-border-color);
   background:rgba(0,0,0,.02);
@@ -54,20 +49,38 @@
 .dz-empty{ color:var(--bs-secondary-color); }
 .dz-preview img{ max-height:260px; object-fit:cover; width:100%; }
 
-/* ========= CETAK LABEL (pakai device-card) ========= */
-@media print{
-  /* Margin aman agar tidak kepotong oleh printer */
-  @page{ margin:10mm; }
+/* ===== Cropper ===== */
+#cropperCanvasWrap{ min-height:360px; max-height:70vh; display:grid; place-items:center; }
+#cropImage{ max-width:100%; height:auto; display:block; }
+.cropper-view-box, .cropper-face { border-radius:8px; }
 
-  /* Sembunyikan semua kecuali device-card */
+/* ========= VALIDATION UX ========= */
+/* Cegah "centang hijau" otomatis pada input kosong (opsional) */
+.prevent-autogreen.was-validated .form-control:valid:placeholder-shown{
+  border-color: var(--bs-border-color) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.form-control.is-valid:placeholder-shown{
+  border-color: var(--bs-border-color) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.prevent-autogreen.was-validated .no-autovalid.form-select:valid{
+  border-color: var(--bs-border-color) !important;
+  box-shadow: none !important;
+  background-image: var(--bs-form-select-bg-img), var(--bs-form-select-bg-icon) !important;
+}
+
+/* ========= CETAK ========= */
+@media print{
+  @page{ margin:10mm; }
   body *{ visibility:hidden !important; }
   .device-card, .device-card *{ visibility:visible !important; }
-
-  /* Tampilkan card sebagai stiker, rapi, tidak kepotong */
   .device-card{
-    position: fixed;         /* abaikan layout lain */
-    inset: 0 auto auto 0;    /* pojok kiri atas */
-    width: 90mm;             /* lebar stiker */
+    position: fixed;
+    inset: 0 auto auto 0;
+    width: 90mm;
     padding: 4mm;
     border: 0 !important;
     box-shadow: none !important;
@@ -75,22 +88,14 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-
-  /* Grid konten stiker: QR kiri + info kanan */
   .device-card .print-grid{
     display:grid; grid-template-columns:32mm 1fr; gap:4mm; align-items:start;
   }
-
-  /* QR kecil aktif saat print (tajam) */
   .qr-in-card{ display:block; }
   .qr-in-card canvas,.qr-in-card img{
     width:30mm !important; height:30mm !important; image-rendering:pixelated;
   }
-
-  /* Sembunyikan status & foto pada label */
   .status-badge{ display:none !important; }
   .device-card .photo-box{ display:none !important; }
-
-  /* URL boleh patah agar tidak tembus border */
   .device-card .url-text{ white-space:normal; word-break:break-all; }
 }

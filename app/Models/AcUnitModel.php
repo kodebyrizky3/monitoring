@@ -14,6 +14,8 @@ class AcUnitModel extends Model
         'nomor_unik',
         'tipe_model',
         'kapasitas_btu',
+        'bmn_no_display',   // <-- Nomor BMN (kolom yang kita pakai)
+        'serial_no',        // <-- Serial Number (kalau ada)
         'lokasi',
         'status_ac',
         'catatan',
@@ -21,6 +23,4 @@ class AcUnitModel extends Model
     ];
 
     protected $useTimestamps = false;
-
-    // HAPUS validationRules bawaan; validasi dilakukan di controller.
 }

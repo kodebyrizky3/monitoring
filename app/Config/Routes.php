@@ -86,6 +86,10 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
                 $routes->get ('(:num)/edit',   'Admin\AcUnits::edit/$1',   ['as' => 'admin.ac.edit']);
                 $routes->post('(:num)/save',   'Admin\AcUnits::update/$1', ['as' => 'admin.ac.update']);
                 $routes->post('(:num)/delete', 'Admin\AcUnits::delete/$1', ['as' => 'admin.ac.delete']);
+                // Bulk delete
+                $routes->post('admin/data-alat/ac/bulk-delete', 'Admin\AcUnits::bulkDelete', ['as' => 'admin.ac.bulk_delete']);
+
+
 
                 // Tambah via QR Generator
                 $routes->get ('tambah',      'Admin\Qr::index', ['as' => 'admin.ac.add']);
@@ -93,6 +97,9 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
                 // Download ulang QR (PNG)
                 $routes->get('(:num)/qr/download', 'Admin\AcUnits::downloadQr/$1', ['as' => 'admin.ac.qr.download']);
+                
+                 // **EXPORT**
+                $routes->get('export', 'Admin\AcUnits::export', ['as' => 'admin.ac.export']);
             });
         });
 

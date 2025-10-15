@@ -1,0 +1,99 @@
+/* public/assets/css/ac-details.css */
+
+/* ==============================
+   Variables & Utilities
+   ============================== */
+:root{
+  --card-pad: 1rem;
+}
+
+/* util object-fit */
+.object-fit-cover   { object-fit: cover; }
+.object-fit-contain { object-fit: contain; }
+
+/* ==============================
+   Hero Photo & Skeleton
+   ============================== */
+.hero-photo{
+  background: var(--bs-secondary-bg);
+  position: relative;
+}
+
+.skeleton{
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,.06) 25%,
+    rgba(0,0,0,.10) 37%,
+    rgba(0,0,0,.06) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer{
+  from { background-position: 100% 0; }
+  to   { background-position:   0% 0; }
+}
+
+/* ==============================
+   Floating Action Button
+   ============================== */
+.btn-fab{
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+}
+
+/* ==============================
+   Quick Facts
+   ============================== */
+.quick-facts .fact{
+  transition: background-color .2s ease, border-color .2s ease;
+  word-break: break-word;        /* teks panjang aman */
+  overflow-wrap: anywhere;
+}
+.quick-facts .fact:hover{
+  background-color: var(--bs-tertiary-bg);
+}
+.quick-facts .fact i{
+  font-size: 1.1rem;
+  color: var(--bs-secondary-color);
+}
+
+/* agar nilai (merek/lokasi) tidak menyebabkan overflow */
+.quick-facts .fw-semibold{
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ==============================
+   Badges (ukuran nyaman)
+   ============================== */
+#badgeStatus.badge{
+  font-weight: 600;
+  letter-spacing: .2px;
+  padding: .35rem .65rem; /* tetap rounded-pill di HTML */
+  line-height: 1.1;
+}
+
+/* ==============================
+   Modal photo
+   ============================== */
+#modalPhoto{
+  background: #000;
+}
+
+/* ==============================
+   Spacing – Mobile
+   ============================== */
+@media (max-width: 576px){
+  .card-body{
+    padding: var(--card-pad);
+  }
+}

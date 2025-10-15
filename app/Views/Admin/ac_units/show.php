@@ -5,11 +5,16 @@
   .ac-photo{
     width:100%;
     max-height:320px;
-    object-fit:cover;            /* rapi tanpa mengubah file asli */
+    object-fit:cover;
     border-radius:.5rem;
     border:1px solid #e5e7eb;
   }
   .qr-wrap img{ max-width:280px; }
+  .copy-btn{
+    border:0; background:transparent; padding:0 .35rem; line-height:1;
+    color:#6b7280;
+  }
+  .copy-btn:hover{ color:#111827; }
 </style>
 <?= $this->endSection() ?>
 
@@ -28,15 +33,28 @@
 </div>
 
 <?php
-  // Sumber gambar QR: pakai cache lokal jika ada, fallback ke endpoint renderer
+  // ==== QR image source ====
   $token     = $row['kode_qr'] ?? '';
-  $cachedRel = 'uploads/qrcodes/'.rawurlencode($token).'.png';
-  $cachedAbs = FCPATH.$cachedRel;
-  $qrSrc     = ($token && is_file($cachedAbs)) ? base_url($cachedRel) : route_to('admin.qr.show', $token);
+  $dataUrl   = $token ? site_url('ac/'.rawurlencode($token)) : '';
+  $cachedRel = $token ? 'uploads/qrcodes/'.rawurlencode($token).'.png' : '';
+  $cachedAbs = $cachedRel ? FCPATH.$cachedRel : null;
+  $qrSrc     = ($token && $cachedAbs && is_file($cachedAbs))
+                ? base_url($cachedRel)
+                : ($token ? 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&qzone=2&data='.rawurlencode($dataUrl) : '');
 
-  // badge status
-  $badgeMap = ['NORMAL'=>'success','MENUNGGU_PERBAIKAN'=>'warning','DALAM_PERBAIKAN'=>'info'];
-  $badgeCls = $badgeMap[$row['status_ac']] ?? 'secondary';
+  // ==== Badge status (enum baru) ====
+  $badgeMap = [
+    'NORMAL'        => 'success',
+    'RUSAK_RINGAN'  => 'warning',
+    'RUSAK_BERAT'   => 'danger',
+  ];
+  $badgeCls = $badgeMap[$row['status_ac'] ?? ''] ?? 'secondary';
+
+  // ==== Serial number prefer kolom serial_no; fallback ke SN= lama yang sudah diextract di controller ($sn) ====
+  $serialDisplay = trim((string)($row['serial_no'] ?? ''));
+  if ($serialDisplay === '' && isset($sn) && trim((string)$sn) !== '') {
+    $serialDisplay = trim((string)$sn);
+  }
 ?>
 
 <div class="row g-3">
@@ -58,7 +76,7 @@
       </div>
     </div>
 
-    <!-- RINGKASAN + AKSI HAPUS (di footer agar tidak terpotong) -->
+    <!-- RINGKASAN + AKSI HAPUS -->
     <div class="card shadow-sm">
       <div class="card-body">
         <dl class="row mb-0">
@@ -66,16 +84,16 @@
           <dd class="col-sm-8">
             <?= $token ? '<code>'.esc($token).'</code>' : '—' ?>
             <?php if ($token): ?>
-            <div class="small mt-1">
-              Token teknisi:
-              <a href="<?= site_url('ac/'.rawurlencode($token)) ?>" target="_blank">/ac/<?= esc($token) ?></a>
-              · <a href="<?= site_url('ac/'.rawurlencode($token).'/perbaikan') ?>" target="_blank">Form Perbaikan</a>
-            </div>
+              <div class="small mt-1">
+                Token teknisi:
+                <a href="<?= site_url('ac/'.rawurlencode($token)) ?>" target="_blank">/ac/<?= esc($token) ?></a>
+                · <a href="<?= site_url('ac/'.rawurlencode($token).'/perbaikan') ?>" target="_blank">Form Perbaikan</a>
+              </div>
             <?php endif; ?>
           </dd>
 
           <dt class="col-sm-4">Nama Perangkat</dt>
-          <dd class="col-sm-8"><?= esc($row['nomor_unik']) ?></dd>
+          <dd class="col-sm-8"><?= esc($row['nomor_unik'] ?? '-') ?></dd>
 
           <dt class="col-sm-4">Merek</dt>
           <dd class="col-sm-8"><?= esc($merek ?? '') ?></dd>
@@ -84,26 +102,40 @@
           <dd class="col-sm-8"><?= esc($model ?? '') ?></dd>
 
           <dt class="col-sm-4">Serial Number</dt>
-          <dd class="col-sm-8"><?= esc($sn ?? '') ?: '—' ?></dd>
+          <dd class="col-sm-8">
+            <?= $serialDisplay !== '' ? esc($serialDisplay) : '—' ?>
+            <?php if ($serialDisplay !== ''): ?>
+              <button class="copy-btn" type="button" data-copy="<?= esc($serialDisplay) ?>" title="Salin SN">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            <?php endif; ?>
+          </dd>
 
-          <dt class="col-sm-4">Lokasi</dt>
-          <dd class="col-sm-8"><?= esc($row['lokasi']) ?></dd>
+          <dt class="col-sm-4">Nomor BMN</dt>
+          <dd class="col-sm-8">
+            <?= !empty($row['bmn_no_display']) ? esc($row['bmn_no_display']) : '—' ?>
+            <?php if (!empty($row['bmn_no_display'])): ?>
+              <button class="copy-btn" type="button" data-copy="<?= esc($row['bmn_no_display']) ?>" title="Salin BMN">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            <?php endif; ?>
+          </dd>
 
           <dt class="col-sm-4">Kapasitas BTU</dt>
-          <dd class="col-sm-8"><?= esc($row['kapasitas_btu']) ?></dd>
+          <dd class="col-sm-8"><?= !empty($row['kapasitas_btu']) ? esc($row['kapasitas_btu']) : '—' ?></dd>
+
+          <dt class="col-sm-4">Lokasi</dt>
+          <dd class="col-sm-8"><?= esc($row['lokasi'] ?? '-') ?></dd>
 
           <dt class="col-sm-4">Status</dt>
           <dd class="col-sm-8">
-            <span class="badge bg-<?= $badgeCls ?>"><?= esc($row['status_ac']) ?></span>
+            <span class="badge bg-<?= $badgeCls ?>"><?= esc($row['status_ac'] ?? '-') ?></span>
           </dd>
-
-          <dt class="col-sm-4">Catatan</dt>
-          <dd class="col-sm-8"><pre class="mb-0"><?= esc($row['catatan'] ?? '') ?></pre></dd>
         </dl>
       </div>
 
       <div class="card-footer bg-white d-flex justify-content-between align-items-center">
-        <span class="text-muted small">ID: <?= (int)$row['id'] ?></span>
+        <span class="text-muted small">ID: <?= (int)($row['id'] ?? 0) ?></span>
         <form id="deleteForm" action="<?= route_to('admin.ac.delete', $row['id']) ?>" method="post" class="m-0">
           <?= csrf_field() ?>
           <button type="button" id="btnDelete" class="btn btn-outline-danger">
@@ -123,7 +155,7 @@
       <div class="card-body d-flex flex-column align-items-center text-center">
         <?php if ($token): ?>
           <div class="qr-wrap">
-            <img id="qrImg" class="img-fluid border rounded p-2" src="<?= $qrSrc ?>" alt="QR: <?= esc($token) ?>">
+            <img id="qrImg" class="img-fluid border rounded p-2" src="<?= esc($qrSrc) ?>" alt="QR: <?= esc($token) ?>">
           </div>
           <div class="mt-3 d-flex flex-wrap gap-2">
             <a class="btn btn-outline-primary" href="<?= route_to('admin.ac.qr.download', $row['id']) ?>">
@@ -149,19 +181,19 @@
           <div class="table-responsive">
             <table class="table table-sm mb-0 align-middle">
               <thead class="table-light">
-              <tr>
-                <th>Waktu</th>
-                <th>Teknisi</th>
-                <th>Tindakan</th>
-                <th>Hasil</th>
-                <th>Biaya</th>
-              </tr>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Teknisi</th>
+                  <th>Tindakan</th>
+                  <th>Hasil</th>
+                  <th>Biaya</th>
+                </tr>
               </thead>
               <tbody>
               <?php foreach ($repairs as $r): ?>
                 <tr>
                   <td><?= $r['submitted_at'] ? date('d M Y H:i', strtotime($r['submitted_at'])) : '—' ?></td>
-                  <td><?= esc($r['teknisi_nama']) ?></td>
+                  <td><?= esc($r['teknisi_nama'] ?? '-') ?></td>
                   <td><?= esc(mb_strimwidth($r['tindakan'] ?? '', 0, 40, '…')) ?></td>
                   <td><?= esc(mb_strimwidth($r['hasil_perbaikan'] ?? '', 0, 40, '…')) ?></td>
                   <td>
@@ -184,15 +216,14 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<!-- SweetAlert (kalau layout belum include) -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function(){
-  // cetak QR
+  // Cetak QR
   document.getElementById('btnPrintQr')?.addEventListener('click', function(){
     const img = document.getElementById('qrImg');
     if(!img?.src) return;
-    const w = window.open('', '_blank', 'width=360,height=480');
+    const w = window.open('', '_blank', 'width=360,height=520');
     w.document.write(`
       <html><head><title>Cetak QR</title>
       <style>
@@ -201,14 +232,14 @@
         .t{margin-top:10px}
       </style></head><body>
       <img src="${img.src}" alt="QR">
-      <div class="t"><?= esc($row['nomor_unik']) ?></div>
+      <div class="t"><?= esc($row['nomor_unik'] ?? '-') ?></div>
       <div class="t"><small>Token: <?= esc($token) ?></small></div>
       <script>window.onload=function(){setTimeout(()=>window.print(),250)}<\/script>
       </body></html>`);
     w.document.close();
   });
 
-  // konfirmasi hapus
+  // Konfirmasi hapus
   document.getElementById('btnDelete')?.addEventListener('click', async () => {
     const res = await Swal.fire({
       icon: 'warning',
@@ -222,11 +253,22 @@
     if (res.isConfirmed) document.getElementById('deleteForm').submit();
   });
 
-  // flash message (opsional)
+  // Salin ke clipboard (SN/BMN)
+  document.querySelectorAll('.copy-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      try{
+        await navigator.clipboard.writeText(btn.dataset.copy||'');
+        btn.innerHTML = '<i class="bi bi-clipboard-check"></i>';
+        setTimeout(()=>{ btn.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1100);
+      }catch(e){}
+    });
+  });
+
+  // Flash message
   const ok  = <?= json_encode(session()->getFlashdata('ok') ?: '') ?>;
   const err = <?= json_encode(session()->getFlashdata('err') ?: '') ?>;
-  if (ok)   Swal.fire({icon:'success', title:'Berhasil', text:ok, timer:1500, showConfirmButton:false});
-  if (err)  Swal.fire({icon:'error',   title:'Gagal',   text:err});
+  if (ok)  Swal.fire({icon:'success', title:'Berhasil', text:ok, timer:1500, showConfirmButton:false});
+  if (err) Swal.fire({icon:'error',   title:'Gagal',   text:err});
 })();
 </script>
 <?= $this->endSection() ?>
