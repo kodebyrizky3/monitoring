@@ -6,49 +6,58 @@
 .stat-sub{ font-size:.9rem; opacity:.9; margin-top:.35rem; }
 .stat-icon{ font-size:2.2rem; opacity:.9; align-self:center; }
 
-/* ====== Toolbar Actions (QR + Export Excel) ====== */
+/* ====== Toolbar Actions (QR + Export + Bulk Delete) ====== */
 .toolbar-actions{
   display:flex;
   flex-wrap:wrap;
   gap:.5rem;
   justify-content:flex-end;
+  align-items:stretch;
+  max-width:100%;
 }
 .toolbar-actions .btn{
   display:inline-flex;
   align-items:center;
-  gap:.4rem;
-  padding:.45rem .75rem;
-  line-height:1.2;
+  gap:.5rem;
+  padding:.5rem .9rem;
+  line-height:1.25;
+  min-height:2.5rem;
+  border-radius:.8rem;
+  flex:0 0 auto;
+  max-width:100%;
 }
 .toolbar-actions .btn .bi{ font-size:1rem; }
 
-/* Variasi warna biar jelas */
-.btn-qr-add{
-  background:#0d6efd; border-color:#0d6efd; color:#fff;
-}
-.btn-qr-add:hover{
-  background:#0b5ed7; border-color:#0a58ca; color:#fff;
-}
-.btn-export-excel{
-  background:#198754; border-color:#198754; color:#fff;
-}
-.btn-export-excel:hover{
-  background:#157347; border-color:#146c43; color:#fff;
-}
+/* Warna tombol */
+.btn-qr-add{ background:#0d6efd; border-color:#0d6efd; color:#fff; }
+.btn-qr-add:hover{ background:#0b5ed7; border-color:#0a58ca; color:#fff; }
 
-/* Stack tombol di layar kecil */
-@media (max-width: 576px){
-  .toolbar-actions .btn{ flex:1 0 100%; justify-content:center; }
+.btn-export-excel{ background:#198754; border-color:#198754; color:#fff; }
+.btn-export-excel:hover{ background:#157347; border-color:#146c43; color:#fff; }
+
+/* State disabled utk bulk delete */
+.btn-bulk-del{ background:#f8d7da; border-color:#f1aeb5; color:#7a2e33; }
+.btn-bulk-del:disabled{ opacity:.65; cursor:not-allowed; }
+
+/* Responsif: rapikan saat ruang sempit */
+@media (max-width: 991.98px){            /* ≤ LG */
+  .toolbar-actions{ justify-content:flex-start; }
+  .toolbar-actions{ display:grid; grid-template-columns:1fr 1fr; }
+  .toolbar-actions .btn{ width:100%; justify-content:center; }
+  .toolbar-actions .btn-bulk-del{ grid-column:1 / -1; }  /* full width di baris atas */
+}
+@media (max-width: 420px){               /* HP kecil */
+  .toolbar-actions{ grid-template-columns:1fr; }
 }
 
 /* ====== Tabel Data AC (tanpa horizontal scroll) ====== */
 .emp-table{ table-layout:fixed; width:100%; border-collapse:separate; border-spacing:0; }
 .emp-table thead th{
-  white-space:nowrap;   /* header jangan pecah */
+  white-space:nowrap;
   font-weight:600;
 }
 .emp-table tbody td{
-  white-space:normal;   /* isi boleh wrap */
+  white-space:normal;
   word-break:break-word;
   overflow-wrap:anywhere;
   vertical-align:top;
@@ -57,7 +66,8 @@
   padding-bottom:.65rem;
 }
 
-/* kolom fixed width agar kolom teks bisa wrap dengan rapi */
+/* kolom fixed width agar kolom teks bisa wrap */
+.emp-table .col-select{ width:42px; }
 .emp-table .col-id{ width:64px; }
 .emp-table .col-btu{ width:140px; }
 .emp-table .col-status{ width:140px; }
@@ -88,3 +98,36 @@
 /* sentuhan kecil */
 .table-hover>tbody>tr:hover>*{ background-color:#f8fafc; }
 .badge{ font-weight:600; }
+
+/* ===== Toolbar compact: kurangin padding + tinggi kontrol ===== */
+.toolbar-card .card-body{ padding:.75rem 1rem; }          /* default 1.25rem */
+.compact .form-label{ margin-bottom:.25rem; font-size:.85rem; }
+.compact .input-group-text{ padding:.375rem .5rem; }
+.compact .form-control,
+.compact .form-select{ padding:.375rem .5rem; height:calc(1.9rem + 2px); }
+
+/* Tombol slim (lebih pendek) */
+.btn-slim{ padding:.4rem .65rem; border-radius:.6rem; line-height:1.2; }
+
+/* Toolbar actions: selalu horisontal di desktop, wrap rapi di mobile */
+.toolbar-actions{
+  display:flex; flex-wrap:wrap; gap:.5rem;
+  justify-content:flex-end; align-items:center;
+}
+@media (min-width: 992px){ /* ≥ lg: jangan stack */
+  .toolbar-actions{ flex-wrap:nowrap; }
+}
+
+/* Sembunyikan teks tombol di layar sangat kecil (icon-only) */
+@media (max-width: 575.98px){
+  .btn-text{ display:none; }
+  .btn-slim{ padding:.4rem .5rem; } /* makin ringkas di xs */
+}
+
+/* (tetap) warna tombol khusus */
+.btn-qr-add{ background:#0d6efd; border-color:#0d6efd; color:#fff; }
+.btn-qr-add:hover{ background:#0b5ed7; border-color:#0a58ca; color:#fff; }
+.btn-export-excel{ background:#198754; border-color:#198754; color:#fff; }
+.btn-export-excel:hover{ background:#157347; border-color:#146c43; color:#fff; }
+.btn-bulk-del{ background:#f8d7da; border-color:#f1aeb5; color:#7a2e33; }
+.btn-bulk-del:disabled{ opacity:.65; cursor:not-allowed; }

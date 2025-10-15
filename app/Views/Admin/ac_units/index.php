@@ -1,10 +1,11 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.1.0">
+<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.2.1">
 <style>
-  .emp-table .col-select{ width:38px; }
-  .form-check-input.table-check{ cursor:pointer; }
+  /* tambahan kecil agar klik enak */
+  .emp-table .col-select{ width:42px; }
+  .form-check-input.table-check{ width:1.05rem; height:1.05rem; cursor:pointer; }
 </style>
 <?= $this->endSection() ?>
 
@@ -65,11 +66,11 @@
   </div>
 </div>
 
-<!-- Toolbar -->
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <form class="row g-2 align-items-end" onsubmit="return false;">
-      <div class="col-12 col-lg-5">
+<!-- Toolbar (compact) -->
+<div class="card shadow-sm toolbar-card mb-3">
+  <div class="card-body compact">
+    <form class="row gy-2 gx-2 align-items-center" onsubmit="return false;">
+      <div class="col-12 col-md-5 col-lg-5">
         <label class="form-label">Cari</label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -78,7 +79,7 @@
         </div>
       </div>
 
-      <div class="col-6 col-lg-3">
+      <div class="col-6 col-md-3 col-lg-3">
         <label class="form-label">Status</label>
         <select id="statusSelect" class="form-select">
           <option value="">Semua</option>
@@ -88,7 +89,7 @@
         </select>
       </div>
 
-      <div class="col-6 col-lg-2">
+      <div class="col-6 col-md-2 col-lg-2">
         <label class="form-label">Per Halaman</label>
         <select id="perPageSelect" class="form-select">
           <?php foreach ([10,20,50,100] as $pp): ?>
@@ -97,21 +98,26 @@
         </select>
       </div>
 
-      <div class="col-12 col-lg-2 d-flex align-items-end justify-content-end gap-2">
-        <button type="button" id="btnBulkDelete" class="btn btn-outline-danger" disabled>
-          <i class="bi bi-trash"></i> Hapus Terpilih (<span id="selCount">0</span>)
-        </button>
-        <button type="button" id="btnExport" class="btn btn-export-excel" title="Export ke Excel">
-          <i class="bi bi-file-earmark-excel"></i><span>Export Excel</span>
-        </button>
-        <a href="<?= route_to('admin.ac.add') ?>" class="btn btn-qr-add" title="Tambah via QR">
-          <i class="bi bi-qr-code-scan"></i><span>Tambah via QR</span>
-        </a>
+      <!-- Aksi: tetap 1 baris di desktop, wrap rapi di mobile -->
+      <div class="col-12 col-lg-auto ms-lg-auto">
+        <div class="toolbar-actions">
+          <button type="button" id="btnBulkDelete" class="btn btn-bulk-del btn-slim" disabled>
+            <i class="bi bi-trash"></i> <span class="btn-text">Hapus Terpilih (<span id="selCount">0</span>)</span>
+          </button>
+          <button type="button" id="btnExport" class="btn btn-export-excel btn-slim" title="Export ke Excel">
+            <i class="bi bi-file-earmark-excel"></i> <span class="btn-text">Export Excel</span>
+          </button>
+          <a href="<?= route_to('admin.ac.add') ?>" class="btn btn-qr-add btn-slim" title="Tambah via QR">
+            <i class="bi bi-qr-code-scan"></i> <span class="btn-text">Tambah via QR</span>
+          </a>
+        </div>
       </div>
     </form>
-    <div id="liveInfo" class="small text-muted mt-2"></div>
+
+    <div id="liveInfo" class="small text-muted mt-1"></div>
   </div>
 </div>
+
 
 <!-- Tabel -->
 <div class="card shadow-sm">
@@ -156,13 +162,15 @@
               <td class="col-lokasi"><?= esc($r['lokasi']) ?></td>
               <td><span class="badge bg-<?= $badge ?>"><?= esc($st) ?></span></td>
               <td class="text-end col-aksi">
-                <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
+                <div class="action-wrap">
                   <a class="btn btn-outline-secondary btn-sm" href="<?= route_to('admin.ac.show',$r['id']) ?>" title="Detail"><i class="bi bi-eye"></i></a>
                   <a class="btn btn-outline-primary btn-sm"  href="<?= route_to('admin.ac.edit',$r['id']) ?>" title="Edit"><i class="bi bi-pencil"></i></a>
                   <a class="btn btn-outline-success btn-sm"  href="<?= route_to('admin.ac.qr.download',$r['id']) ?>" title="Unduh QR"><i class="bi bi-download"></i></a>
                   <button class="btn btn-outline-danger btn-sm btn-delete"
                           data-url="<?= route_to('admin.ac.delete',$r['id']) ?>"
-                          data-name="<?= esc($r['nomor_unik']) ?>" title="Hapus"><i class="bi bi-trash"></i></button>
+                          data-name="<?= esc($r['nomor_unik']) ?>" title="Hapus">
+                    <i class="bi bi-trash"></i>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -184,6 +192,7 @@
 <!-- Bulk delete form -->
 <form id="bulkDeleteForm" class="d-none" method="post" action="<?= route_to('admin.ac.bulk_delete') ?>">
   <?= csrf_field() ?>
+  <input type="hidden" name="ids" id="bulkIds">
 </form>
 
 <?= $this->endSection() ?>
@@ -200,5 +209,5 @@
     }
   };
 </script>
-<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.7.0"></script>
+<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.7.1"></script>
 <?= $this->endSection() ?>
