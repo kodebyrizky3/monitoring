@@ -14,18 +14,21 @@ if (!isset($token) || !$token) {
 <div id="__page" data-token="<?= esc($token ?? '') ?>"></div>
 
 <div class="card shadow-sm mb-3 overflow-hidden">
-  <!-- HERO PHOTO -->
+<!-- HERO PHOTO -->
   <div class="hero-photo ratio ratio-16x9 position-relative">
     <img id="acPhoto" class="w-100 h-100 object-fit-cover d-none" alt="Foto AC" loading="lazy">
     <div id="photoSkeleton" class="skeleton"></div>
 
     <!-- Tools kiri atas -->
-    <div class="photo-tools position-absolute top-0 start-0 m-2 d-flex gap-2">
-      <button id="btnZoom" class="btn btn-fab btn-light btn-sm d-none" aria-label="Perbesar foto" title="Perbesar">
+    <div class="photo-tools position-absolute top-0 start-0 m-2">
+      <button id="btnZoom" type="button" class="zoom-btn d-none" aria-label="Perbesar foto" title="Perbesar">
         <i class="bi bi-arrows-fullscreen"></i>
       </button>
     </div>
   </div>
+
+
+
 
   <!-- BODY -->
   <div class="card-body">
@@ -58,13 +61,33 @@ if (!isset($token) || !$token) {
         <div class="fact d-flex align-items-center p-2 rounded border bg-body">
           <i class="bi bi-upc-scan me-2"></i>
           <div>
-            <div class="text-muted small lh-1">Model / SN</div>
-            <div class="fw-semibold small" id="modelSn">—</div>
+            <div class="text-muted small lh-1">Model</div>
+            <div class="fw-semibold small" id="modelOnly">—</div>
           </div>
         </div>
       </div>
 
-      <div class="col-12 col-lg-4">
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-hash me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">Serial No</div>
+            <div class="fw-semibold small" id="serialNo">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-123 me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">No. BMN</div>
+            <div class="fw-semibold small" id="noBmn">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6 col-lg-4">
         <div class="fact d-flex align-items-center p-2 rounded border bg-body">
           <i class="bi bi-geo-alt me-2"></i>
           <div class="w-100">
@@ -73,6 +96,47 @@ if (!isset($token) || !$token) {
           </div>
         </div>
       </div>
+
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-thermometer-half me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">Freon Terakhir</div>
+            <div class="fw-semibold small" id="lastFreon">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-clock-history me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">Terakhir Perawatan</div>
+            <div class="fw-semibold small" id="lastPerawatan">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-tools me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">Terakhir Service</div>
+            <div class="fw-semibold small" id="lastService">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-6 col-lg-4">
+        <div class="fact d-flex align-items-center p-2 rounded border bg-body">
+          <i class="bi bi-lightning-charge me-2"></i>
+          <div>
+            <div class="text-muted small lh-1">Ampere Terakhir</div>
+            <div class="fw-semibold small" id="lastAmper">—</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -91,12 +155,17 @@ if (!isset($token) || !$token) {
 <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
     <div class="modal-content bg-dark border-0">
+      <div class="modal-header border-0">
+        <h5 class="modal-title text-white mb-0">Foto Perangkat</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
       <div class="modal-body p-0">
         <img id="modalPhoto" class="w-100 h-100 object-fit-contain" alt="Foto AC">
       </div>
     </div>
   </div>
 </div>
+
 
 <noscript>
   <div class="alert alert-warning mt-3">Aktifkan JavaScript untuk memuat detail perangkat.</div>
@@ -112,9 +181,9 @@ if (!isset($token) || !$token) {
 
 <?= $this->section('styles') ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-<link href="<?= base_url('assets/css/ac-detail.css') ?>?v=1.0.0" rel="stylesheet">
+<link href="<?= base_url('assets/css/ac-detail.css') ?>?v=1.0.6" rel="stylesheet">
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="<?= base_url('assets/js-teknisi/ac-detail.js') ?>?v=1.1.0"></script>
+<script src="<?= base_url('assets/js-teknisi/ac-detail.js') ?>?v=1.3.0"></script>
 <?= $this->endSection() ?>

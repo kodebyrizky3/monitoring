@@ -34,7 +34,7 @@ class AcUnits extends BaseController
 
         $list = $AC->select($select)->orderBy('id','DESC')->findAll(10);
 
-        // inject sn: hanya dari serial_no
+        // inject sn dari serial_no
         $list = array_map(static function(array $r) use ($hasSerial){
             $r['sn'] = $hasSerial ? trim((string)($r['serial_no'] ?? '')) : '';
             return $r;
@@ -48,7 +48,7 @@ class AcUnits extends BaseController
         ]);
     }
 
-    /* ====== ENDPOINT SEARCH (JSON) untuk tabel + refresh kartu ====== */
+    /* ====== ENDPOINT SEARCH (JSON) ====== */
     public function search()
     {
         $q       = trim($this->request->getGet('q') ?? '');
@@ -57,9 +57,9 @@ class AcUnits extends BaseController
         $page    = max((int)($this->request->getGet('page') ?? 1), 1);
         $offset  = ($page - 1) * $perPage;
 
-        $m        = new AcUnitModel();
-        $table    = 'ac_units';
-        $hasSerial= $this->hasColumn($table, 'serial_no');
+        $m         = new AcUnitModel();
+        $table     = 'ac_units';
+        $hasSerial = $this->hasColumn($table, 'serial_no');
 
         $select = 'id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac';
         if ($hasSerial) $select .= ',serial_no';
@@ -74,9 +74,7 @@ class AcUnits extends BaseController
                    ->orLike('kapasitas_btu', $q)
                    ->orLike('bmn_no_display', $q)
                    ->orLike('lokasi', $q);
-            if ($hasSerial) {
-                $b = $b->orLike('serial_no', $q);
-            }
+            if ($hasSerial) $b = $b->orLike('serial_no', $q);
             $b = $b->groupEnd();
         }
         if ($status !== '' && in_array($status, self::ALLOWED_STATUS, true)) {
@@ -90,7 +88,7 @@ class AcUnits extends BaseController
         // page data
         $rows = $b->limit($perPage, $offset)->get()->getResultArray();
 
-        // siapkan URL + SN (hanya dari serial_no)
+        // siapkan URL + SN
         $data = array_map(function(array $r) use ($hasSerial) {
             $id = (int)$r['id'];
             $sn = $hasSerial ? trim((string)($r['serial_no'] ?? '')) : '';
@@ -134,18 +132,83 @@ class AcUnits extends BaseController
         [$merek,$model] = $this->splitBrandModel($row['tipe_model'] ?? '');
         $sn = $this->hasColumn('ac_units','serial_no') ? trim((string)($row['serial_no'] ?? '')) : '';
 
+        // Riwayat perbaikan
         $Rep     = new AcRepairModel();
         $repairs = $Rep->listByAc($id);
 
+        // ==== Terakhir servis (repair terbaru apa pun) ====
+        $lastServiceAt = null;
+        if (!empty($repairs)) {
+            foreach ($repairs as $rp) {
+                if (!empty($rp['submitted_at'])) {
+                    $ts = strtotime($rp['submitted_at']);
+                    if ($ts && ($lastServiceAt === null || $ts > strtotime($lastServiceAt))) {
+                        $lastServiceAt = date('Y-m-d H:i:s', $ts);
+                    }
+                }
+            }
+        }
+
+        // ==== Terakhir perawatan (kolom khusus atau deteksi dari isi) ====
+        $lastMaintenanceAt = $row['last_maintenance_at'] ?? null;
+        if (!$lastMaintenanceAt && !empty($repairs)) {
+            $maxMt = null;
+            foreach ($repairs as $rp) {
+                $isMaintenance = false;
+                if (!empty($rp['jenis']) && strtoupper($rp['jenis']) === 'PERAWATAN') $isMaintenance = true;
+                elseif (!empty($rp['type']) && strtoupper($rp['type']) === 'PERAWATAN') $isMaintenance = true;
+                else {
+                    $txt = strtoupper(trim(($rp['tindakan'] ?? '') . ' ' . ($rp['hasil_perbaikan'] ?? '')));
+                    if ($txt !== '' && (str_contains($txt,'RAWAT') || str_contains($txt,'PERAWATAN'))) $isMaintenance = true;
+                }
+                if ($isMaintenance && !empty($rp['submitted_at'])) {
+                    $ts = strtotime($rp['submitted_at']);
+                    if ($ts && ($maxMt === null || $ts > $maxMt)) $maxMt = $ts;
+                }
+            }
+            if ($maxMt) $lastMaintenanceAt = date('Y-m-d H:i:s', $maxMt);
+        }
+
+        // ==== Tekanan freon & ampere terakhir (nilai + waktu) ====
+        $lastFreon    = null;
+        $lastFreonAt  = null;
+        $lastAmper    = null;
+        $lastAmperAt  = null;
+
+        if (!empty($repairs)) {
+            // sort desc by submitted_at supaya ketemu tercepat
+            usort($repairs, static function($a,$b){
+                return strtotime($b['submitted_at'] ?? '1970-01-01') <=> strtotime($a['submitted_at'] ?? '1970-01-01');
+            });
+            foreach ($repairs as $rp) {
+                if ($lastFreon === null) {
+                    $val = $rp['tekanan_freon'] ?? ($rp['freon_pressure'] ?? null);
+                    if ($val !== null && $val !== '') { $lastFreon = $val; $lastFreonAt = $rp['submitted_at'] ?? null; }
+                }
+                if ($lastAmper === null) {
+                    $valA = $rp['ampere'] ?? ($rp['ampere_terukur'] ?? null);
+                    if ($valA !== null && $valA !== '') { $lastAmper = $valA; $lastAmperAt = $rp['submitted_at'] ?? null; }
+                }
+                if ($lastFreon !== null && $lastAmper !== null) break;
+            }
+        }
+
         return view('Admin/ac_units/show', [
-            'title'      => 'Detail Alat AC',
-            'activeMenu' => 'ac.list',
-            'row'        => $row,
-            'merek'      => $merek,
-            'model'      => $model,
-            'sn'         => $sn,
-            'repairs'    => $repairs,
-            'photoUrl'   => $this->findPhotoUrl($id),
+            'title'              => 'Detail Alat AC',
+            'activeMenu'         => 'ac.list',
+            'row'                => $row,
+            'merek'              => $merek,
+            'model'              => $model,
+            'sn'                 => $sn,
+            'repairs'            => $repairs,
+            'photoUrl'           => $this->findPhotoUrl($id),
+
+            'lastServiceAt'      => $lastServiceAt,
+            'lastMaintenanceAt'  => $lastMaintenanceAt,
+            'lastFreon'          => $lastFreon,
+            'lastFreonAt'        => $lastFreonAt,
+            'lastAmper'          => $lastAmper,
+            'lastAmperAt'        => $lastAmperAt,
         ]);
     }
 
@@ -201,7 +264,6 @@ class AcUnits extends BaseController
             'lokasi'         => $lokasi ?: ($row['lokasi'] ?? '-'),
             'status_ac'      => $statusFinal,
         ];
-
         if ($this->hasColumn('ac_units','serial_no')) {
             $data['serial_no'] = ($sn !== '') ? $sn : null;
         }
@@ -218,9 +280,7 @@ class AcUnits extends BaseController
         $dir = FCPATH.'uploads/ac_units/'.$id;
         $remove = (int)$this->request->getPost('remove_photo') === 1;
 
-        if ($remove) {
-            $this->deletePhotoFiles($dir);
-        }
+        if ($remove) $this->deletePhotoFiles($dir);
 
         $file = $this->request->getFile('foto');
         if ($file && $file->isValid()) {
@@ -260,9 +320,7 @@ class AcUnits extends BaseController
 
         // bersihkan file
         $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
-        if (!empty($row['kode_qr'])) {
-            @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
-        }
+        if (!empty($row['kode_qr'])) @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
 
         return redirect()->route('admin.ac.index')->with('ok','Data berhasil dihapus');
     }
@@ -333,18 +391,13 @@ class AcUnits extends BaseController
                 $row = $AC->find($id);
                 if (!$row) continue;
 
-                // hapus anak
                 (new AcRepairModel())->where('ac_id', $id)->delete();
                 (new AcTicketModel())->where('ac_id', $id)->delete();
 
-                // hapus induk
                 $db->table('ac_units')->where('id', $id)->delete();
 
-                // hapus file
                 $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
-                if (!empty($row['kode_qr'])) {
-                    @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
-                }
+                if (!empty($row['kode_qr'])) @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
             }
             $db->transCommit();
         } catch (\Throwable $e) {
@@ -522,13 +575,9 @@ class AcUnits extends BaseController
         $files = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
 
         foreach ($files as $f) {
-            if ($f->isDir()) {
-                @rmdir($f->getPathname());
-            } else {
-                @unlink($f->getPathname());
-            }
+            if ($f->isDir()) @rmdir($f->getPathname());
+            else @unlink($f->getPathname());
         }
         @rmdir($path);
     }
-
 }

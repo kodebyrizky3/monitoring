@@ -45,46 +45,13 @@
     $serialDisplay = trim((string)$sn);
   }
 
-  // ==== Terakhir servis (pakai field; fallback max dari $repairs) ====
-  $lastServiceAt = $row['last_service_at'] ?? null;
-  if (!$lastServiceAt && !empty($repairs)) {
-    $maxTs = null;
-    foreach ($repairs as $rp) {
-      if (!empty($rp['submitted_at'])) {
-        $ts = strtotime($rp['submitted_at']);
-        if ($ts && ($maxTs===null || $ts > $maxTs)) $maxTs = $ts;
-      }
-    }
-    if ($maxTs) $lastServiceAt = date('Y-m-d H:i:s', $maxTs);
-  }
-
-  // ==== Terakhir perawatan (prioritas: kolom last_maintenance_at; fallback cari di $repairs) ====
-  $lastMaintenanceAt = $row['last_maintenance_at'] ?? null;
-  if (!$lastMaintenanceAt && !empty($repairs)) {
-    $maxMt = null;
-    foreach ($repairs as $rp) {
-      $isMaintenance = false;
-
-      // jika ada field 'jenis' / 'type'
-      if (!empty($rp['jenis']) && strtoupper($rp['jenis']) === 'PERAWATAN') {
-        $isMaintenance = true;
-      } elseif (!empty($rp['type']) && strtoupper($rp['type']) === 'PERAWATAN') {
-        $isMaintenance = true;
-      } else {
-        // fallback: cek kata kunci pada tindakan/hasil
-        $txt = strtoupper(trim(($rp['tindakan'] ?? '') . ' ' . ($rp['hasil_perbaikan'] ?? '')));
-        if ($txt !== '' && (str_contains($txt, 'RAWAT') || str_contains($txt, 'PERAWATAN'))) {
-          $isMaintenance = true;
-        }
-      }
-
-      if ($isMaintenance && !empty($rp['submitted_at'])) {
-        $ts = strtotime($rp['submitted_at']);
-        if ($ts && ($maxMt===null || $ts > $maxMt)) $maxMt = $ts;
-      }
-    }
-    if ($maxMt) $lastMaintenanceAt = date('Y-m-d H:i:s', $maxMt);
-  }
+  // Nilai tambahan dari controller (fallback aman)
+  $lastServiceAt     = $lastServiceAt     ?? null;
+  $lastMaintenanceAt = $lastMaintenanceAt ?? null;
+  $lastFreon         = $lastFreon         ?? null;
+  $lastFreonAt       = $lastFreonAt       ?? null;
+  $lastAmper         = $lastAmper         ?? null;
+  $lastAmperAt       = $lastAmperAt       ?? null;
 
   $merek = $merek ?? '';
   $model = $model ?? '';
@@ -161,6 +128,22 @@
           <dt class="col-sm-4">Terakhir Perawatan</dt>
           <dd class="col-sm-8">
             <?= $lastMaintenanceAt ? date('d M Y H:i', strtotime($lastMaintenanceAt)) : '—' ?>
+          </dd>
+
+          <dt class="col-sm-4">Tekanan Freon Terakhir</dt>
+          <dd class="col-sm-8">
+            <?= ($lastFreon !== null && $lastFreon !== '') ? esc($lastFreon) : '—' ?>
+            <?php if (!empty($lastFreonAt)): ?>
+              <small class="text-muted ms-1">(<?= date('d M Y H:i', strtotime($lastFreonAt)) ?>)</small>
+            <?php endif; ?>
+          </dd>
+
+          <dt class="col-sm-4">Ampere Terakhir</dt>
+          <dd class="col-sm-8">
+            <?= ($lastAmper !== null && $lastAmper !== '') ? esc($lastAmper) : '—' ?>
+            <?php if (!empty($lastAmperAt)): ?>
+              <small class="text-muted ms-1">(<?= date('d M Y H:i', strtotime($lastAmperAt)) ?>)</small>
+            <?php endif; ?>
           </dd>
 
           <dt class="col-sm-4">Kode QR</dt>
