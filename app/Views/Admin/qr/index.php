@@ -220,10 +220,6 @@
               <label class="form-label">Unggah CSV</label>
               <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control">
               <div class="d-flex align-items-center gap-3 mt-2">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="hasHeader" checked>
-                  <label class="form-check-label" for="hasHeader">Baris pertama adalah header</label>
-                </div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
               </div>
               <div class="form-text">Maksimal 1000 baris per unggahan.</div>
@@ -234,6 +230,15 @@
                   <li>CSV pakai <code>DD-MM-YYYY</code> (contoh: <code>20-09-2025</code>).</li>
                   <li>Jika salah format → disimpan kosong (tidak error).</li>
                 </ul>
+              </div>
+
+              <div class="alert alert-secondary mt-3 small">
+                <div class="fw-semibold mb-1">Aturan Status AC:</div>
+                <ul class="mb-1">
+                  <li>Status Harus <code>NORMAL/RUSAK_RINGAN/RUSAK_BERAT</code></li>
+                  <li>Jika salah pengetikan maka status akan disimpan sebagai <code>NORMAL</code>.</li>
+                </ul>
+                <b>Catatan: Pastikan untuk memeriksa kembali data sebelum mengunggah.</b>
               </div>
 
               <div class="mt-3">
