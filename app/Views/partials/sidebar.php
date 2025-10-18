@@ -86,14 +86,14 @@ $acIndexUrl = function () {
     </li>
 
     <li class="nav-item">
-      <a class="nav-link <?= $active==='employees'?'active':'' ?>" href="<?= base_url('admin/pegawai') ?>"<?= $dismissAttr ?>>
+      <a class="nav-link <?= $active==='employees'?'active':'' ?>" href="<?= base_url('pegawai') ?>"<?= $dismissAttr ?>>
         <i class="bi bi-people me-2"></i>Pegawai
       </a>
     </li>
 
     <li class="nav-item">
-      <a class="nav-link <?= $active==='bidang'?'active':'' ?>" href="<?= base_url('admin/bidang') ?>"<?= $dismissAttr ?>>
-        <i class="bi bi-diagram-3 me-2"></i>Departemen
+      <a class="nav-link <?= $active==='pengaturan'?'active':'' ?>" href="<?= base_url('pengaturan') ?>"<?= $dismissAttr ?>>
+        <i class="bi bi-gear me-2"></i>Pengaturan
       </a>
     </li>
 
