@@ -211,7 +211,7 @@
   </div>
 </div>
 
-<!-- ========== Modal Bulk Input ========== -->
+<!-- ========== Modal Bulk Input (CSV only) ========== -->
 <div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
@@ -224,7 +224,7 @@
           <?= csrf_field() ?>
 
           <div class="alert alert-info small">
-            <div class="fw-semibold mb-1">Format kolom (CSV atau paste dari Excel):</div>
+            <div class="fw-semibold mb-1">Format kolom (CSV dari Excel/Google Sheets):</div>
             <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status</code>
             <div class="mt-2">Contoh:
               <pre class="mb-0">AC Ruang 1, Daikin, ATKC25U, SN123, Lantai 2 - Ruang 1, 12000, 31415926, NORMAL</pre>
@@ -233,15 +233,10 @@
 
           <div class="row g-3">
             <div class="col-lg-6">
-              <label class="form-label">Paste data (atau unggah CSV)</label>
-              <textarea id="bulkText" class="form-control" rows="12" placeholder="Nama,Merek,Model,Serial No,Lokasi,Kapasitas BTU,Nomor BMN,Status&#10;..."></textarea>
+              <label class="form-label">Unggah CSV</label>
+              <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control">
               <div class="d-flex align-items-center gap-2 mt-2">
-                <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control form-control-sm w-auto">
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
-                <div class="form-check ms-auto">
-                  <input class="form-check-input" type="checkbox" id="hasHeader" checked>
-                  <label class="form-check-label" for="hasHeader">Baris pertama adalah header</label>
-                </div>
               </div>
               <div class="form-text">Maksimal 1000 baris per unggahan.</div>
             </div>
@@ -278,7 +273,6 @@
       <div class="modal-footer">
         <div class="me-auto small text-muted" id="bulkMsg"></div>
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
-        <button type="button" class="btn btn-primary" id="btnBulkParse"><i class="bi bi-search"></i> Parse</button>
         <button type="button" class="btn btn-success" id="btnBulkSave" disabled><i class="bi bi-save"></i> Simpan Semua</button>
       </div>
     </div>

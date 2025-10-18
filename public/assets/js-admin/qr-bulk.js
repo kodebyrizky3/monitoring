@@ -4,7 +4,7 @@
   const $ = (s, p = document) => p.querySelector(s);
   const $$ = (s, p = document) => Array.from(p.querySelectorAll(s));
 
-  // CSV/TSV parser sederhana (dukung koma, kutip; juga deteksi TAB)
+  // CSV parser sederhana (dukung koma & quoted; juga deteksi TAB)
   function parseDelimited(text) {
     if (!text) return [];
     const lines = text
@@ -44,13 +44,12 @@
       .trim()
       .toUpperCase()
       .replace(/\s+/g, "_");
-    if (["NORMAL", "RUSAK_RINGAN", "RUSAK_BERAT"].includes(s)) return s;
-    // fallback NORMAL
-    return "NORMAL";
+    return ["NORMAL", "RUSAK_RINGAN", "RUSAK_BERAT"].includes(s) ? s : "NORMAL";
   }
 
-  // State
+  // ===== State =====
   let parsedRows = []; // array of arrays (fixed order)
+  let fileText = ""; // raw text from uploaded CSV
 
   function renderPreview() {
     const tbody = $("#bulkPreviewTbody");
@@ -91,16 +90,13 @@
     $("#btnBulkSave")?.removeAttribute("disabled");
   }
 
-  async function handleFile(file) {
-    if (!file) return;
-    const text = await file.text();
-    $("#bulkText").value = text;
-  }
-
-  function parseFromTextarea() {
-    const raw = $("#bulkText").value || "";
-    let rows = parseDelimited(raw);
-
+  function doParse() {
+    if (!fileText) {
+      parsedRows = [];
+      renderPreview();
+      return;
+    }
+    let rows = parseDelimited(fileText);
     if (!rows.length) {
       parsedRows = [];
       renderPreview();
@@ -109,11 +105,10 @@
 
     const hasHeader = $("#hasHeader")?.checked;
     if (hasHeader && rows.length) {
-      // drop first row as header
       rows = rows.slice(1);
     }
 
-    // map to 8 columns (fill missing with "")
+    // map ke 8 kolom, isi kosong jika kurang
     parsedRows = rows.map((r) => {
       const arr = new Array(8).fill("");
       for (let i = 0; i < Math.min(r.length, 8); i++) {
@@ -122,10 +117,10 @@
       return arr;
     });
 
-    // Filter baris kosong (nama wajib)
+    // filter nama kosong
     parsedRows = parsedRows.filter((r) => (r[0] || "").trim() !== "");
 
-    // Limit 1000
+    // limit 1000
     if (parsedRows.length > 1000) {
       parsedRows = parsedRows.slice(0, 1000);
       $("#bulkMsg").textContent = "Dipangkas ke 1000 baris maksimum.";
@@ -136,13 +131,30 @@
     renderPreview();
   }
 
+  async function handleFile(file) {
+    if (!file) return;
+    try {
+      fileText = await file.text();
+      doParse(); // auto-parse setelah pilih file
+    } catch (e) {
+      console.error(e);
+      fileText = "";
+      parsedRows = [];
+      renderPreview();
+      Swal.fire({
+        icon: "error",
+        title: "Gagal",
+        text: "Tidak bisa membaca file ini.",
+      });
+    }
+  }
+
   async function saveBulk() {
     if (!parsedRows.length) return;
     const form = $("#bulkForm");
     const saveUrl = form?.dataset?.bulkUrl;
     if (!saveUrl) return;
 
-    // siapkan payload ke format objek
     const rowsObj = parsedRows.map((r) => ({
       nama: r[0],
       merek: r[1] || null,
@@ -182,7 +194,6 @@
       if (js && js.csrf && js.csrf_token) {
         const inp = form.querySelector(`input[name="${js.csrf_token}"]`);
         if (inp) inp.value = js.csrf;
-        // sinkronkan ke form utama juga (biar konsisten)
         const inp2 = document.querySelector(
           `#formQR input[name="${js.csrf_token}"]`
         );
@@ -195,46 +206,24 @@
         throw new Error(msg);
       }
 
-      // Tampilkan ringkasan & status per baris
       const ok = js.success || 0;
       const fail = js.failed || 0;
       const total = js.total || rowsObj.length;
 
-      Swal.fire({
+      // Tampilkan ringkasan, lalu TUTUP modal otomatis
+      await Swal.fire({
         icon: fail ? "warning" : "success",
         title: "Selesai",
         html: `Total: <b>${total}</b> &middot; Berhasil: <b>${ok}</b> &middot; Gagal: <b>${fail}</b>`,
       });
 
-      // Tabel preview → tambahkan kolom hasil (sementara: highlight baris gagal)
-      const tbody = $("#bulkPreviewTbody");
-      // hapus status lama
-      $$("#bulkPreviewTable thead tr th").length === 9 &&
-        $("#bulkPreviewTable thead tr").appendChild(
-          (() => {
-            const th = document.createElement("th");
-            th.textContent = "Hasil";
-            return th;
-          })()
-        );
-      const trs = $$("#bulkPreviewTbody tr");
-      // reset
-      trs.forEach((tr) => tr.classList.remove("table-danger", "table-success"));
-      // apply
-      (js.results || []).forEach((r) => {
-        const idx = (r.row || 1) - 1;
-        const tr = trs[idx];
-        if (!tr) return;
-        const td = document.createElement("td");
-        if (r.ok) {
-          td.textContent = "OK";
-          tr.classList.add("table-success");
-        } else {
-          td.textContent = r.error || "Gagal";
-          tr.classList.add("table-danger");
-        }
-        tr.appendChild(td);
-      });
+      // Tutup modal setelah alert
+      const modalEl = document.getElementById("bulkModal");
+      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.hide();
+
+      // Reset state setelah ditutup
+      resetBulkUI();
     } catch (err) {
       console.error(err);
       Swal.fire({
@@ -246,6 +235,19 @@
       btn.innerHTML = oldHtml;
       btn.removeAttribute("disabled");
     }
+  }
+
+  function resetBulkUI() {
+    parsedRows = [];
+    fileText = "";
+    const file = $("#bulkFile");
+    if (file) file.value = "";
+    $(
+      "#bulkPreviewTbody"
+    ).innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
+    $("#bulkCount").textContent = "0 baris siap disimpan";
+    $("#bulkMsg").textContent = "";
+    $("#btnBulkSave")?.setAttribute("disabled", "disabled");
   }
 
   // Wire UI
@@ -263,31 +265,18 @@
 
     $("#bulkFile")?.addEventListener("change", async (e) => {
       const f = e.target.files?.[0];
-      if (f) await handleFile(f);
+      await handleFile(f);
     });
 
-    $("#btnBulkParse")?.addEventListener("click", parseFromTextarea);
+    $("#hasHeader")?.addEventListener("change", () => {
+      // re-parse file text saat toggle header
+      doParse();
+    });
+
     $("#btnBulkSave")?.addEventListener("click", saveBulk);
 
-    // auto-parse saat modal dibuka jika sebelumnya sudah ada teks
+    // Saat modal ditutup manual, reset tampilan
     const bulkModal = document.getElementById("bulkModal");
-    bulkModal?.addEventListener("shown.bs.modal", () => {
-      if (($("#bulkText").value || "").trim()) parseFromTextarea();
-    });
-
-    // reset preview saat ditutup
-    bulkModal?.addEventListener("hidden.bs.modal", () => {
-      parsedRows = [];
-      $("#bulkText").value = "";
-      $(
-        "#bulkPreviewTbody"
-      ).innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
-      $("#bulkCount").textContent = "0 baris siap disimpan";
-      $("#bulkMsg").textContent = "";
-      $("#btnBulkSave")?.setAttribute("disabled", "disabled");
-      // buang kolom "Hasil" kalau ada
-      const ths = $$("#bulkPreviewTable thead tr th");
-      if (ths.length === 10) ths[9].remove();
-    });
+    bulkModal?.addEventListener("hidden.bs.modal", resetBulkUI);
   });
 })();
