@@ -3,17 +3,10 @@
 <?= $this->section('styles') ?>
 <style>
   .ac-photo{
-    width:100%;
-    max-height:320px;
-    object-fit:cover;
-    border-radius:.5rem;
-    border:1px solid #e5e7eb;
+    width:100%; max-height:320px; object-fit:cover; border-radius:.5rem; border:1px solid #e5e7eb;
   }
   .qr-wrap img{ max-width:280px; }
-  .copy-btn{
-    border:0; background:transparent; padding:0 .35rem; line-height:1;
-    color:#6b7280;
-  }
+  .copy-btn{ border:0; background:transparent; padding:0 .35rem; line-height:1; color:#6b7280; }
   .copy-btn:hover{ color:#111827; }
 </style>
 <?= $this->endSection() ?>
@@ -42,19 +35,59 @@
                 ? base_url($cachedRel)
                 : ($token ? 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&qzone=2&data='.rawurlencode($dataUrl) : '');
 
-  // ==== Badge status (enum baru) ====
-  $badgeMap = [
-    'NORMAL'        => 'success',
-    'RUSAK_RINGAN'  => 'warning',
-    'RUSAK_BERAT'   => 'danger',
-  ];
+  // ==== Badge status (enum) ====
+  $badgeMap = ['NORMAL'=>'success','RUSAK_RINGAN'=>'warning','RUSAK_BERAT'=>'danger'];
   $badgeCls = $badgeMap[$row['status_ac'] ?? ''] ?? 'secondary';
 
-  // ==== Serial number prefer kolom serial_no; fallback ke SN= lama yang sudah diextract di controller ($sn) ====
+  // ==== Serial display ====
   $serialDisplay = trim((string)($row['serial_no'] ?? ''));
   if ($serialDisplay === '' && isset($sn) && trim((string)$sn) !== '') {
     $serialDisplay = trim((string)$sn);
   }
+
+  // ==== Terakhir servis (pakai field; fallback max dari $repairs) ====
+  $lastServiceAt = $row['last_service_at'] ?? null;
+  if (!$lastServiceAt && !empty($repairs)) {
+    $maxTs = null;
+    foreach ($repairs as $rp) {
+      if (!empty($rp['submitted_at'])) {
+        $ts = strtotime($rp['submitted_at']);
+        if ($ts && ($maxTs===null || $ts > $maxTs)) $maxTs = $ts;
+      }
+    }
+    if ($maxTs) $lastServiceAt = date('Y-m-d H:i:s', $maxTs);
+  }
+
+  // ==== Terakhir perawatan (prioritas: kolom last_maintenance_at; fallback cari di $repairs) ====
+  $lastMaintenanceAt = $row['last_maintenance_at'] ?? null;
+  if (!$lastMaintenanceAt && !empty($repairs)) {
+    $maxMt = null;
+    foreach ($repairs as $rp) {
+      $isMaintenance = false;
+
+      // jika ada field 'jenis' / 'type'
+      if (!empty($rp['jenis']) && strtoupper($rp['jenis']) === 'PERAWATAN') {
+        $isMaintenance = true;
+      } elseif (!empty($rp['type']) && strtoupper($rp['type']) === 'PERAWATAN') {
+        $isMaintenance = true;
+      } else {
+        // fallback: cek kata kunci pada tindakan/hasil
+        $txt = strtoupper(trim(($rp['tindakan'] ?? '') . ' ' . ($rp['hasil_perbaikan'] ?? '')));
+        if ($txt !== '' && (str_contains($txt, 'RAWAT') || str_contains($txt, 'PERAWATAN'))) {
+          $isMaintenance = true;
+        }
+      }
+
+      if ($isMaintenance && !empty($rp['submitted_at'])) {
+        $ts = strtotime($rp['submitted_at']);
+        if ($ts && ($maxMt===null || $ts > $maxMt)) $maxMt = $ts;
+      }
+    }
+    if ($maxMt) $lastMaintenanceAt = date('Y-m-d H:i:s', $maxMt);
+  }
+
+  $merek = $merek ?? '';
+  $model = $model ?? '';
 ?>
 
 <div class="row g-3">
@@ -80,26 +113,14 @@
     <div class="card shadow-sm">
       <div class="card-body">
         <dl class="row mb-0">
-          <dt class="col-sm-4">Kode QR</dt>
-          <dd class="col-sm-8">
-            <?= $token ? '<code>'.esc($token).'</code>' : '—' ?>
-            <?php if ($token): ?>
-              <div class="small mt-1">
-                Token teknisi:
-                <a href="<?= site_url('ac/'.rawurlencode($token)) ?>" target="_blank">/ac/<?= esc($token) ?></a>
-                · <a href="<?= site_url('ac/'.rawurlencode($token).'/perbaikan') ?>" target="_blank">Form Perbaikan</a>
-              </div>
-            <?php endif; ?>
-          </dd>
-
           <dt class="col-sm-4">Nama Perangkat</dt>
           <dd class="col-sm-8"><?= esc($row['nomor_unik'] ?? '-') ?></dd>
 
           <dt class="col-sm-4">Merek</dt>
-          <dd class="col-sm-8"><?= esc($merek ?? '') ?></dd>
+          <dd class="col-sm-8"><?= esc($merek) ?></dd>
 
           <dt class="col-sm-4">Model</dt>
-          <dd class="col-sm-8"><?= esc($model ?? '') ?></dd>
+          <dd class="col-sm-8"><?= esc($model ?: ($row['tipe_model'] ?? '')) ?></dd>
 
           <dt class="col-sm-4">Serial Number</dt>
           <dd class="col-sm-8">
@@ -130,6 +151,28 @@
           <dt class="col-sm-4">Status</dt>
           <dd class="col-sm-8">
             <span class="badge bg-<?= $badgeCls ?>"><?= esc($row['status_ac'] ?? '-') ?></span>
+          </dd>
+
+          <dt class="col-sm-4">Terakhir Servis</dt>
+          <dd class="col-sm-8">
+            <?= $lastServiceAt ? date('d M Y H:i', strtotime($lastServiceAt)) : '—' ?>
+          </dd>
+
+          <dt class="col-sm-4">Terakhir Perawatan</dt>
+          <dd class="col-sm-8">
+            <?= $lastMaintenanceAt ? date('d M Y H:i', strtotime($lastMaintenanceAt)) : '—' ?>
+          </dd>
+
+          <dt class="col-sm-4">Kode QR</dt>
+          <dd class="col-sm-8">
+            <?= $token ? '<code>'.esc($token).'</code>' : '—' ?>
+            <?php if ($token): ?>
+              <div class="small mt-1">
+                Token teknisi:
+                <a href="<?= site_url('ac/'.rawurlencode($token)) ?>" target="_blank">/ac/<?= esc($token) ?></a>
+                · <a href="<?= site_url('ac/'.rawurlencode($token).'/perbaikan') ?>" target="_blank">Form Perbaikan</a>
+              </div>
+            <?php endif; ?>
           </dd>
         </dl>
       </div>

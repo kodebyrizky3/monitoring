@@ -1,4 +1,4 @@
-// public/assets/js-admin/ac-units.js  (v1.7.0)
+// public/assets/js-admin/ac-units.js  (v2.3.0) — Excel-like grid, sticky header, safe escape, No = nomor urut
 (function () {
   "use strict";
 
@@ -12,15 +12,12 @@
   const perSel = document.getElementById("perPageSelect");
   const exportBtn = document.getElementById("btnExport");
 
-  // Bulk selection UI
   const chkAll = document.getElementById("chkAll");
   const btnBulk = document.getElementById("btnBulkDelete");
   const selCount = document.getElementById("selCount");
   const bulkForm = document.getElementById("bulkDeleteForm");
 
-  // simpan id terpilih lintas pagination & filter
   const selected = new Set();
-
   let inflightController = null;
   let reqSeq = 0;
 
@@ -33,7 +30,7 @@
   };
 
   const escapeHtml = (s) =>
-    (s || "").replace(
+    String(s ?? "").replace(
       /[&<>"']/g,
       (c) =>
         ({
@@ -56,18 +53,15 @@
     let s = Math.max(1, cur - h);
     let e = Math.min(total, s + width - 1);
     s = Math.max(1, e - width + 1);
-    const arr = [];
-    for (let i = s; i <= e; i++) arr.push(i);
-    return arr;
+    const out = [];
+    for (let i = s; i <= e; i++) out.push(i);
+    return out;
   };
-
   const setInfoLoading = () => {
     if (infoEl) infoEl.textContent = "Memuat…";
   };
   const setInfoCount = (rowsLen, total, page, perPage) => {
-    if (!infoEl) {
-      return;
-    }
+    if (!infoEl) return;
     if (!total) {
       infoEl.textContent = "";
       return;
@@ -81,9 +75,9 @@
 
   function updateCards(stats) {
     if (!stats) return;
-    const set = (id, val) => {
+    const set = (id, v) => {
       const el = document.getElementById(id);
-      if (el) el.textContent = val ?? 0;
+      if (el) el.textContent = v ?? 0;
     };
     set("statTotal", stats.total);
     set("statRingan", stats.ringan);
@@ -92,31 +86,25 @@
   }
 
   function renderPager() {
-    if (!pagerEl) {
-      return;
-    }
+    if (!pagerEl) return;
     const p = state.page,
       n = state.pageCount;
     if (n <= 1) {
       pagerEl.innerHTML = "";
       return;
     }
-
-    const btn = (label, page, disabled = false, active = false) =>
-      `<li class="page-item ${disabled ? "disabled" : ""} ${
-        active ? "active" : ""
-      }">
-         <a class="page-link" href="#" data-page="${page}">${label}</a>
-       </li>`;
+    const btn = (label, page, disabled = false, active = false) => `
+      <li class="page-item ${disabled ? "disabled" : ""} ${
+      active ? "active" : ""
+    }">
+        <a class="page-link" href="#" data-page="${page}">${label}</a>
+      </li>`;
     let html = `<ul class="pagination mb-0 justify-content-end">`;
     html += btn("&laquo;", Math.max(1, p - 1), p === 1);
-    pageRange(p, n, 5).forEach((pg) => {
-      html += btn(pg, pg, false, pg === p);
-    });
+    pageRange(p, n, 5).forEach((pg) => (html += btn(pg, pg, false, pg === p)));
     html += btn("&raquo;", Math.min(n, p + 1), p === n);
     html += `</ul>`;
     pagerEl.innerHTML = html;
-
     pagerEl.querySelectorAll("a.page-link").forEach((a) => {
       a.addEventListener("click", (e) => {
         e.preventDefault();
@@ -138,10 +126,9 @@
     document.querySelectorAll(".btn-delete").forEach((btn) => {
       btn.onclick = async (e) => {
         e.preventDefault();
-        const url = btn.dataset.url;
-        const name = btn.dataset.name || "perangkat";
+        const url = btn.dataset.url,
+          name = btn.dataset.name || "perangkat";
         if (!url) return;
-
         const res = await Swal.fire({
           icon: "warning",
           title: "Hapus data?",
@@ -154,7 +141,6 @@
           reverseButtons: true,
         });
         if (!res.isConfirmed) return;
-
         const form = document.getElementById("deleteForm");
         form.setAttribute("action", url);
         form.submit();
@@ -162,7 +148,6 @@
     });
   }
 
-  // ====== Selection helpers ======
   function updateBulkUI() {
     const n = selected.size;
     if (selCount) selCount.textContent = String(n);
@@ -189,7 +174,6 @@
       });
     });
   }
-
   chkAll?.addEventListener("change", () => {
     const cbs = tbody ? tbody.querySelectorAll("input.row-check") : [];
     cbs.forEach((cb) => {
@@ -200,10 +184,8 @@
     });
     updateBulkUI();
   });
-
   btnBulk?.addEventListener("click", async () => {
     if (selected.size === 0) return;
-
     const res = await Swal.fire({
       icon: "warning",
       title: "Hapus data?",
@@ -214,14 +196,10 @@
       reverseButtons: true,
     });
     if (!res.isConfirmed) return;
-
-    // submit via hidden form (aman CSRF)
     if (!bulkForm) return;
-    // bersihkan input lama
     Array.from(bulkForm.querySelectorAll('input[name="ids[]"]')).forEach((el) =>
       el.remove()
     );
-    // tambah ids[]
     selected.forEach((id) => {
       const inp = document.createElement("input");
       inp.type = "hidden";
@@ -232,7 +210,6 @@
     bulkForm.submit();
   });
 
-  // ====== Fetch List ======
   async function fetchList() {
     const mySeq = ++reqSeq;
     inflightController?.abort();
@@ -269,8 +246,9 @@
         state.page = state.pageCount;
         return fetchList();
       }
-
       if (totalEl) totalEl.textContent = total;
+
+      const baseNo = (state.page - 1) * state.perPage;
 
       const badge = (st) => {
         const m = {
@@ -283,45 +261,52 @@
         )}</span>`;
       };
 
-      // render: with checkbox column + actions
       tbody.innerHTML = rows.length
         ? rows
-            .map(
-              (r) => `
-        <tr>
-          <td class="col-select">
-            <input type="checkbox" class="form-check-input table-check row-check" value="${
-              r.id
-            }">
-          </td>
-          <td class="col-id">${r.id}</td>
-          <td class="col-nama">${escapeHtml(r.nomor_unik || "")}</td>
-          <td class="col-tipe">${escapeHtml(r.tipe_model || "")}</td>
-          <td class="col-btu">${escapeHtml(r.kapasitas_btu || "-")}</td>
-          <td class="col-bmn">${escapeHtml(r.bmn_no_display || "-")}</td>
-          <td class="col-lokasi">${escapeHtml(r.lokasi || "")}</td>
-          <td class="col-status">${badge(r.status_ac)}</td>
-          <td class="text-end col-aksi">
-            <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
-              <a class="btn btn-outline-secondary btn-sm" href="${
-                r.show_url
-              }" title="Detail"><i class="bi bi-eye"></i></a>
-              <a class="btn btn-outline-primary btn-sm"   href="${
-                r.edit_url
-              }" title="Edit"><i class="bi bi-pencil"></i></a>
-              <a class="btn btn-outline-success btn-sm"   href="${
-                r.dl_qr_url
-              }" title="Unduh QR"><i class="bi bi-download"></i></a>
-              <button class="btn btn-outline-danger btn-sm btn-delete" data-url="${
-                r.del_url
-              }" data-name="${escapeHtml(
-                r.nomor_unik || ""
-              )}" title="Hapus"><i class="bi bi-trash"></i></button>
-            </div>
-          </td>
-        </tr>
-      `
-            )
+            .map((r, idx) => {
+              const no = baseNo + idx + 1;
+              const sn = r.serial_no || r.sn || "";
+              return `
+          <tr>
+            <td class="col-select">
+              <input type="checkbox" class="form-check-input table-check row-check" value="${
+                r.id
+              }">
+            </td>
+            <td class="col-id">${escapeHtml(no)}</td>
+            <td class="col-nama">
+              <div class="cell-name">
+                <div class="nm text-truncate" title="${escapeHtml(
+                  r.nomor_unik || ""
+                )}">${escapeHtml(r.nomor_unik || "")}</div>
+                ${sn ? `<div class="sub">SN: ${escapeHtml(sn)}</div>` : ``}
+              </div>
+            </td>
+            <td class="col-tipe">${escapeHtml(r.tipe_model || "")}</td>
+            <td class="col-btu">${escapeHtml(r.kapasitas_btu || "-")}</td>
+            <td class="col-bmn">${escapeHtml(r.bmn_no_display || "-")}</td>
+            <td class="col-lokasi">${escapeHtml(r.lokasi || "")}</td>
+            <td class="col-status">${badge(r.status_ac)}</td>
+            <td class="text-end col-aksi">
+              <div class="d-flex flex-wrap justify-content-end gap-1 action-wrap">
+                <a class="btn btn-outline-secondary btn-sm" href="${
+                  r.show_url
+                }" title="Detail"><i class="bi bi-eye"></i></a>
+                <a class="btn btn-outline-primary btn-sm"   href="${
+                  r.edit_url
+                }" title="Edit"><i class="bi bi-pencil"></i></a>
+                <a class="btn btn-outline-success btn-sm"   href="${
+                  r.dl_qr_url
+                }" title="Unduh QR"><i class="bi bi-download"></i></a>
+                <button class="btn btn-outline-danger btn-sm btn-delete" data-url="${
+                  r.del_url
+                }" data-name="${escapeHtml(r.nomor_unik || "")}" title="Hapus">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>`;
+            })
             .join("")
         : `<tr><td colspan="9" class="text-center text-muted">Tidak ada data.</td></tr>`;
 
@@ -330,7 +315,6 @@
       bindRowChecks();
       syncHeaderCheck();
       updateBulkUI();
-
       setInfoCount(rows.length, total, state.page, state.perPage);
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -338,7 +322,6 @@
     }
   }
 
-  // Filter handlers
   qInput &&
     qInput.addEventListener(
       "input",
@@ -361,7 +344,6 @@
       fetchList();
     });
 
-  // Export (ikut filter aktif)
   exportBtn?.addEventListener("click", () => {
     const u = new URL(
       window.APP?.acExport || "/admin/data-alat/ac/export",
@@ -372,11 +354,10 @@
     window.location.href = u.toString();
   });
 
-  // Flash → Swal
   (function showFlash() {
     const ok = window.APP?.flash?.ok || "";
     const err = window.APP?.flash?.err || "";
-    if (ok) {
+    if (ok)
       Swal.fire({
         icon: "success",
         title: "Berhasil",
@@ -385,12 +366,9 @@
         showConfirmButton: false,
         timerProgressBar: true,
       });
-    } else if (err) {
-      Swal.fire({ icon: "error", title: "Gagal", text: err });
-    }
+    else if (err) Swal.fire({ icon: "error", title: "Gagal", text: err });
   })();
 
-  // Init
   if (infoEl) infoEl.textContent = "";
   fetchList();
 })();

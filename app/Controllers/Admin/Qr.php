@@ -75,7 +75,8 @@ class Qr extends BaseController
             return $this->response->setJSON($this->withCsrf(['error' => "Tabel `$table` tidak ditemukan"]))
                                   ->setStatusCode(500);
         }
-        $uniques = $this->listUniqueColumns($table);
+        $uniques   = $this->listUniqueColumns($table);
+        $hasSerial = isset($cols['serial_no']);
 
         // === Pastikan token (kode_qr) unik
         if (isset($cols['kode_qr'])) {
@@ -100,11 +101,12 @@ class Qr extends BaseController
         }
 
         $tipeModel = trim(($merek ? $merek.' ' : '').$model);
-        if (mb_strlen($tipeModel, 'UTF-8') > 120) $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
+        if (mb_strlen($tipeModel, 'UTF-8') > 120) {
+            $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
+        }
 
-        $catatan = [];
-        if ($serial !== '') $catatan[] = 'SN='.$serial;
-        if ($bmn    !== '') $catatan[] = 'BMN='.$bmn;
+        // ⛔️ STOP: tidak lagi menulis SN ke `catatan`
+        // (Kalau ingin menulis catatan lain, boleh tambahkan, tapi SN harus di kolom `serial_no`.)
 
         $candidate = [
             'kode_qr'        => $token ?: null,
@@ -114,16 +116,21 @@ class Qr extends BaseController
             'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
             'bmn_no_display' => ($bmn !== '' ? $bmn : null),
             'status_ac'      => $statusI,
-            'catatan'        => ($catatan ? implode("\n", $catatan) : null),
+            // 'catatan'      => null, // optional: kosongkan saja
         ];
+        if ($hasSerial) {
+            $candidate['serial_no'] = ($serial !== '') ? $serial : null;
+        }
 
         // pilih hanya kolom yg ada
         $data = [];
-        foreach ($candidate as $k => $v) if (isset($cols[$k])) $data[$k] = $v;
+        foreach ($candidate as $k => $v) {
+            if (isset($cols[$k])) $data[$k] = $v;
+        }
 
         // enum guard (pakai nilai pertama kalau tidak valid)
         if (isset($data['status_ac'], $cols['status_ac'])) {
-            $allowed = $this->parseEnumAllowed($cols['status_ac']['Type']);
+            $allowed = $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null);
             if ($allowed && !in_array($data['status_ac'], $allowed, true)) {
                 $data['status_ac'] = $allowed[0];
             }
