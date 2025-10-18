@@ -13,10 +13,7 @@ class QrRender extends BaseController
             return $this->response->setStatusCode(400)->setBody('Bad token');
         }
 
-        // Data yang di-encode: URL teknisi
         $dataUrl = site_url('ac/'.rawurlencode($token));
-
-        // Pakai layanan QR publik (PNG), diambil oleh servermu lalu di-stream ke browser
         $api = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&qzone=2&data='.rawurlencode($dataUrl);
         $png = $this->httpGet($api);
 
@@ -29,7 +26,6 @@ class QrRender extends BaseController
 
     private function httpGet(string $url)
     {
-        // cURL lebih stabil di banyak server
         if (function_exists('curl_init')) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
@@ -43,7 +39,6 @@ class QrRender extends BaseController
             curl_close($ch);
             if ($code === 200 && $out !== false) return $out;
         }
-        // fallback sederhana
         return @file_get_contents($url);
     }
 }
