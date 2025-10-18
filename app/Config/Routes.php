@@ -67,9 +67,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get('notifications/stream', 'Admin\Notifications::stream', ['as' => 'admin.notif.stream']);
 
         // ===== Alias lama: arahkan ke Kendala (bukan Data_kendala) =====
-        // Pakai index() dari Admin\Kendala:
         $routes->get('data_kendala', 'Admin\Kendala::index', ['as' => 'admin.data_kendala']);
-        // (Kalau mau, bisa juga diarahkan ke route grup baru:)
         // $routes->get('data_kendala', static fn() => redirect()->route('admin.kendala.index'));
 
         // =========================
@@ -78,18 +76,17 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->group('admin/data-alat', static function ($routes) {
             $routes->group('ac', static function ($routes) {
                 // List + Search (JSON)
-                $routes->get ('/',            'Admin\AcUnits::index',  ['as' => 'admin.ac.index']);
-                $routes->get ('search',       'Admin\AcUnits::search', ['as' => 'admin.ac.search']);
+                $routes->get ('/',      'Admin\AcUnits::index',  ['as' => 'admin.ac.index']);
+                $routes->get ('search', 'Admin\AcUnits::search', ['as' => 'admin.ac.search']);
 
                 // Show / Edit / Update / Delete
                 $routes->get ('(:num)',        'Admin\AcUnits::show/$1',   ['as' => 'admin.ac.show']);
                 $routes->get ('(:num)/edit',   'Admin\AcUnits::edit/$1',   ['as' => 'admin.ac.edit']);
                 $routes->post('(:num)/save',   'Admin\AcUnits::update/$1', ['as' => 'admin.ac.update']);
                 $routes->post('(:num)/delete', 'Admin\AcUnits::delete/$1', ['as' => 'admin.ac.delete']);
-                // Bulk delete
-                $routes->post('admin/data-alat/ac/bulk-delete', 'Admin\AcUnits::bulkDelete', ['as' => 'admin.ac.bulk_delete']);
 
-
+                // Bulk delete (FIX path: cukup "bulk-delete" karena sudah di dalam grup)
+                $routes->post('bulk-delete', 'Admin\AcUnits::bulkDelete', ['as' => 'admin.ac.bulk_delete']);
 
                 // Tambah via QR Generator
                 $routes->get ('tambah',      'Admin\Qr::index', ['as' => 'admin.ac.add']);
@@ -97,8 +94,8 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
                 // Download ulang QR (PNG)
                 $routes->get('(:num)/qr/download', 'Admin\AcUnits::downloadQr/$1', ['as' => 'admin.ac.qr.download']);
-                
-                 // **EXPORT**
+
+                // EXPORT
                 $routes->get('export', 'Admin\AcUnits::export', ['as' => 'admin.ac.export']);
             });
         });
@@ -106,9 +103,10 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         // Render PNG QR langsung untuk <img src="...">
         $routes->get('admin/qr/png/(:segment)', 'Admin\QrRender::show/$1', ['as' => 'admin.qr.show']);
 
-        // QR (lama/opsional)
-        $routes->get ('admin/qr',      'Admin\Qr::index', ['as' => 'admin.qr']);
-        $routes->post('admin/qr/save', 'Admin\Qr::save',  ['as' => 'admin.qr.save']);
+        // QR (lama/opsional) + BULK SAVE BARU
+        $routes->get ('admin/qr',           'Admin\Qr::index',     ['as' => 'admin.qr']);
+        $routes->post('admin/qr/save',      'Admin\Qr::save',      ['as' => 'admin.qr.save']);
+        $routes->post('admin/qr/bulk-save', 'Admin\Qr::bulkSave',  ['as' => 'admin.qr.bulk_save']);
         if (ENVIRONMENT !== 'production') {
             $routes->get('admin/qr/diag', 'Admin\Qr::diag', ['as' => 'admin.qr.diag']);
         }

@@ -98,6 +98,11 @@
               <i class="bi bi-magic"></i> Generate
             </button>
             <button type="reset" id="btnReset" class="btn btn-outline-secondary">Reset</button>
+
+            <!-- === Tombol Bulk === -->
+            <button type="button" id="btnBulkOpen" class="btn btn-outline-dark ms-sm-auto" data-bs-toggle="modal" data-bs-target="#bulkModal">
+              <i class="bi bi-list-check"></i> Bulk Input
+            </button>
           </div>
         </form>
       </div>
@@ -206,12 +211,92 @@
   </div>
 </div>
 
+<!-- ========== Modal Bulk Input ========== -->
+<div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-list-check"></i> Bulk Input AC</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <form id="bulkForm" autocomplete="off" data-bulk-url="<?= site_url('admin/qr/bulk-save') ?>">
+          <?= csrf_field() ?>
+
+          <div class="alert alert-info small">
+            <div class="fw-semibold mb-1">Format kolom (CSV atau paste dari Excel):</div>
+            <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status</code>
+            <div class="mt-2">Contoh:
+              <pre class="mb-0">AC Ruang 1, Daikin, ATKC25U, SN123, Lantai 2 - Ruang 1, 12000, 31415926, NORMAL</pre>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <label class="form-label">Paste data (atau unggah CSV)</label>
+              <textarea id="bulkText" class="form-control" rows="12" placeholder="Nama,Merek,Model,Serial No,Lokasi,Kapasitas BTU,Nomor BMN,Status&#10;..."></textarea>
+              <div class="d-flex align-items-center gap-2 mt-2">
+                <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control form-control-sm w-auto">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
+                <div class="form-check ms-auto">
+                  <input class="form-check-input" type="checkbox" id="hasHeader" checked>
+                  <label class="form-check-label" for="hasHeader">Baris pertama adalah header</label>
+                </div>
+              </div>
+              <div class="form-text">Maksimal 1000 baris per unggahan.</div>
+            </div>
+            <div class="col-lg-6">
+              <label class="form-label">Preview</label>
+              <div class="table-responsive border rounded" style="max-height:380px; overflow:auto;">
+                <table class="table table-sm table-hover align-middle mb-0" id="bulkPreviewTable">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Nama</th>
+                      <th>Merek</th>
+                      <th>Model</th>
+                      <th>Serial</th>
+                      <th>Lokasi</th>
+                      <th>BTU</th>
+                      <th>BMN</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulkPreviewTbody">
+                    <tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="small mt-2">
+                <span id="bulkCount" class="text-muted">0 baris siap disimpan</span>
+              </div>
+            </div>
+          </div>
+        </form>
+
+      </div>
+      <div class="modal-footer">
+        <div class="me-auto small text-muted" id="bulkMsg"></div>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="btn btn-primary" id="btnBulkParse"><i class="bi bi-search"></i> Parse</button>
+        <button type="button" class="btn btn-success" id="btnBulkSave" disabled><i class="bi bi-save"></i> Simpan Semua</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?= $this->endSection() ?>
 
 <?= $this->section('styles') ?>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet">
 <link href="<?= base_url('assets/css/admin-qr.css') ?>" rel="stylesheet">
+<style>
+/* tambahan kecil untuk tabel preview bulk */
+#bulkPreviewTable td, #bulkPreviewTable th { white-space: nowrap; }
+#bulkPreviewTable td:nth-child(2) { min-width: 180px; }
+#bulkPreviewTable td:nth-child(6) { min-width: 200px; }
+</style>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
@@ -219,4 +304,5 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 <script src="<?= base_url('assets/js-admin/qr-generator.js') ?>"></script>
+<script src="<?= base_url('assets/js-admin/qr-bulk.js') ?>"></script>
 <?= $this->endSection() ?>

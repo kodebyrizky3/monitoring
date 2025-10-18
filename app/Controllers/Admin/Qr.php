@@ -105,9 +105,6 @@ class Qr extends BaseController
             $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
         }
 
-        // ⛔️ STOP: tidak lagi menulis SN ke `catatan`
-        // (Kalau ingin menulis catatan lain, boleh tambahkan, tapi SN harus di kolom `serial_no`.)
-
         $candidate = [
             'kode_qr'        => $token ?: null,
             'nomor_unik'     => $nomorUnik ?: null,
@@ -116,7 +113,6 @@ class Qr extends BaseController
             'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
             'bmn_no_display' => ($bmn !== '' ? $bmn : null),
             'status_ac'      => $statusI,
-            // 'catatan'      => null, // optional: kosongkan saja
         ];
         if ($hasSerial) {
             $candidate['serial_no'] = ($serial !== '') ? $serial : null;
@@ -193,6 +189,238 @@ class Qr extends BaseController
             'ok'  => true,
             'id'  => (int)$id,
             'url' => site_url('ac/'.($data['kode_qr'] ?? $token)),
+        ]));
+    }
+
+    /**
+     * ====== BULK SAVE: simpan banyak AC sekaligus ======
+     * Input: POST form-data dengan field "rows" berisi JSON array:
+     * [
+     *   ["Nama","Merek","Model","Serial No","Lokasi","BTU","BMN","Status"],
+     *   ...
+     * ]
+     * Atau objek:
+     * [
+     *   {"nama":"...","merek":"...","model":"...","serial_no":"...","lokasi":"...","kapasitas_btu":"12000","bmn_no_display":"...","status":"NORMAL"},
+     *   ...
+     * ]
+     */
+    public function bulkSave()
+    {
+        if ($this->request->getMethod(true) !== 'POST') {
+            return $this->response->setJSON($this->withCsrf(['error' => 'Method Not Allowed']))
+                                  ->setStatusCode(ResponseInterface::HTTP_METHOD_NOT_ALLOWED);
+        }
+
+        // Ambil payload "rows" dari form-data
+        $rowsRaw = $this->request->getPost('rows');
+        if (!$rowsRaw) {
+            // fallback: JSON body
+            $json = $this->request->getJSON(true);
+            $rows = $json['rows'] ?? $json ?? null;
+        } else {
+            $rows = json_decode($rowsRaw, true);
+        }
+
+        if (!is_array($rows)) {
+            return $this->response->setJSON($this->withCsrf(['error' => 'Payload tidak valid (rows)']))
+                                  ->setStatusCode(422);
+        }
+
+        // Normalisasi: boleh berupa array of arrays (CSV) atau array of objects
+        $norm = [];
+        foreach ($rows as $r) {
+            if (is_array($r) && array_values($r) === $r) {
+                // array numerik: pakai urutan kolom tetap
+                $norm[] = [
+                    'nama'           => trim((string)($r[0] ?? '')),
+                    'merek'          => trim((string)($r[1] ?? '')),
+                    'model'          => trim((string)($r[2] ?? '')),
+                    'serial_no'      => trim((string)($r[3] ?? '')),
+                    'lokasi'         => trim((string)($r[4] ?? '')),
+                    'kapasitas_btu'  => (string)($r[5] ?? ''),
+                    'bmn_no_display' => (string)($r[6] ?? ''),
+                    'status'         => (string)($r[7] ?? 'NORMAL'),
+                ];
+            } else {
+                // object/assoc
+                $norm[] = [
+                    'nama'           => trim((string)($r['nama'] ?? '')),
+                    'merek'          => trim((string)($r['merek'] ?? '')),
+                    'model'          => trim((string)($r['model'] ?? '')),
+                    'serial_no'      => trim((string)($r['serial_no'] ?? '')),
+                    'lokasi'         => trim((string)($r['lokasi'] ?? '')),
+                    'kapasitas_btu'  => (string)($r['kapasitas_btu'] ?? ''),
+                    'bmn_no_display' => (string)($r['bmn_no_display'] ?? ''),
+                    'status'         => (string)($r['status'] ?? 'NORMAL'),
+                    'token'          => (string)($r['token'] ?? $r['kode_qr'] ?? ''), // opsional
+                ];
+            }
+        }
+
+        $maxRows = 1000;
+        if (count($norm) === 0) {
+            return $this->response->setJSON($this->withCsrf(['error' => 'Tidak ada baris data']))
+                                  ->setStatusCode(422);
+        }
+        if (count($norm) > $maxRows) {
+            return $this->response->setJSON($this->withCsrf(['error' => "Maksimal {$maxRows} baris per unggahan"]))
+                                  ->setStatusCode(413);
+        }
+
+        $AC    = new AcUnitModel();
+        $table = $AC->table;
+        $cols  = $this->listColumns($table);
+        if (!$cols) {
+            return $this->response->setJSON($this->withCsrf(['error' => "Tabel `$table` tidak ditemukan"]))
+                                  ->setStatusCode(500);
+        }
+        $uniques   = $this->listUniqueColumns($table);
+        $hasSerial = isset($cols['serial_no']);
+        $hasKode   = isset($cols['kode_qr']);
+
+        $allowedStatus = isset($cols['status_ac'])
+            ? $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null)
+            : ['NORMAL','RUSAK_RINGAN','RUSAK_BERAT'];
+
+        $results = [];
+        $okCount = 0;
+
+        foreach ($norm as $i => $row) {
+            $rowNum = $i + 1; // human-friendly
+            // Validasi minimal
+            if ($row['nama'] === '') {
+                $results[] = [
+                    'row'   => $rowNum,
+                    'ok'    => false,
+                    'error' => 'Nama wajib diisi',
+                ];
+                continue;
+            }
+
+            // angka-only
+            $kapBTU = (int)preg_replace('/\D+/', '', (string)($row['kapasitas_btu'] ?? '12000'));
+            if ($kapBTU <= 0) $kapBTU = 12000;
+            $bmn = preg_replace('/\D+/', '', (string)($row['bmn_no_display'] ?? ''));
+
+            // status
+            $statusI = strtoupper(trim((string)($row['status'] ?: 'NORMAL')));
+            $statusI = str_replace(' ', '_', $statusI);
+            if (!in_array($statusI, $allowedStatus, true)) {
+                $statusI = $allowedStatus[0] ?? 'NORMAL';
+            }
+
+            // token (kode_qr)
+            $token = trim((string)($row['token'] ?? ''));
+            if ($hasKode) {
+                if ($token === '' || $AC->where('kode_qr', $token)->first()) {
+                    $token = $this->makeKodeQrUnique($AC);
+                }
+            } else {
+                $token = null;
+            }
+
+            // nomor_unik (maks 64) + unik jika perlu
+            $nomorUnik = $this->normalizeName((string)$row['nama']);
+            $nomorUnik = mb_substr($nomorUnik, 0, 64, 'UTF-8');
+            if (in_array('nomor_unik', $uniques, true)) {
+                $nomorUnik = $this->makeUniqueValue($AC, 'nomor_unik', $nomorUnik, 64);
+            }
+
+            // tipe_model
+            $merek = (string)$row['merek'];
+            $model = (string)$row['model'];
+            $tipeModel = trim(($merek ? $merek.' ' : '').$model);
+            if (mb_strlen($tipeModel, 'UTF-8') > 120) {
+                $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
+            }
+
+            $lokasi = trim((string)$row['lokasi']);
+            $serial = trim((string)$row['serial_no']);
+
+            $candidate = [
+                'kode_qr'        => $token ?: null,
+                'nomor_unik'     => $nomorUnik ?: null,
+                'tipe_model'     => ($tipeModel !== '' ? $tipeModel : '-'),
+                'kapasitas_btu'  => $kapBTU,
+                'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
+                'bmn_no_display' => ($bmn !== '' ? $bmn : null),
+                'status_ac'      => $statusI,
+            ];
+            if ($hasSerial) {
+                $candidate['serial_no'] = ($serial !== '') ? $serial : null;
+            }
+
+            // pilih hanya kolom yg ada
+            $data = [];
+            foreach ($candidate as $k => $v) {
+                if (isset($cols[$k])) $data[$k] = $v;
+            }
+
+            // enum guard
+            if (isset($data['status_ac'], $cols['status_ac'])) {
+                $allowed = $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null);
+                if ($allowed && !in_array($data['status_ac'], $allowed, true)) {
+                    $data['status_ac'] = $allowed[0];
+                }
+            }
+
+            // default utk NOT NULL tanpa default
+            foreach ($cols as $name => $meta) {
+                if (!array_key_exists($name, $data)) {
+                    $isNotNull = (strpos(strtoupper($meta['Null'] ?? ''), 'NO') !== false);
+                    $hasDefault= array_key_exists('Default', $meta) && $meta['Default'] !== null;
+                    if ($isNotNull && !$hasDefault) {
+                        $type = strtolower($meta['Type'] ?? 'varchar(191)');
+                        if (strpos($type, 'int') !== false)          $data[$name] = 0;
+                        elseif (strpos($type, 'enum(') !== false)    $data[$name] = $this->parseEnumAllowed($type)[0] ?? '';
+                        else                                         $data[$name] = '';
+                    }
+                }
+            }
+
+            try {
+                $id = $AC->protect(false)->insert($data, true);
+                if ($id === false) {
+                    $results[] = [
+                        'row'   => $rowNum,
+                        'ok'    => false,
+                        'error' => 'Gagal simpan (validasi model)',
+                        'validation' => $AC->errors(),
+                        'db_error'   => $AC->db->error(),
+                    ];
+                    continue;
+                }
+                $okCount++;
+                $results[] = [
+                    'row'   => $rowNum,
+                    'ok'    => true,
+                    'id'    => (int)$id,
+                    'token' => $data['kode_qr'] ?? null,
+                    'url'   => site_url('ac/'.($data['kode_qr'] ?? '')),
+                ];
+            } catch (DatabaseException $e) {
+                $results[] = [
+                    'row'   => $rowNum,
+                    'ok'    => false,
+                    'error' => 'DB exception: '.$e->getMessage(),
+                    'db_error' => $AC->db->error(),
+                ];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'row'   => $rowNum,
+                    'ok'    => false,
+                    'error' => 'Server exception: '.$e->getMessage(),
+                ];
+            }
+        }
+
+        return $this->response->setJSON($this->withCsrf([
+            'ok'       => true,
+            'total'    => count($norm),
+            'success'  => $okCount,
+            'failed'   => count($norm) - $okCount,
+            'results'  => $results,
         ]));
     }
 
