@@ -212,7 +212,7 @@
 
           <div class="alert alert-info small">
             <div class="fw-semibold mb-1">Format CSV (12 kolom urut):</div>
-            <code>Nam, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
+            <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
           </div>
 
           <div class="row g-3">
