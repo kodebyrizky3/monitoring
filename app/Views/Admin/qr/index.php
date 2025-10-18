@@ -46,9 +46,17 @@
 
           <div class="col-6">
             <label class="form-label">Nomor BMN</label>
-            <input name="bmn_no_display" id="bmn_no_display" class="form-control no-autovalid"
-                   placeholder="1234567890" inputmode="numeric" pattern="\d*" maxlength="30">
-            <div class="form-text">Hanya angka (0–9).</div>
+            <input
+              name="bmn_no_display"
+              id="bmn_no_display"
+              class="form-control no-autovalid"
+              placeholder="3.05.01.04.002 - 068"
+              maxlength="20"
+              autocomplete="off"
+              pattern="^(\d\.\d{2}\.\d{2}\.\d{2}\.\d{3}\s-\s\d{3})$">
+            <div class="form-text">
+              Format otomatis: <code>X.XX.XX.XX.XXX - XXX</code> (ketik angka saja).
+            </div>
           </div>
 
           <div class="col-12">
@@ -160,7 +168,7 @@
   </div>
 </div>
 
-<!-- Modal Crop Foto (tetap) -->
+<!-- Modal Crop Foto -->
 <div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -211,7 +219,11 @@
             <div class="col-lg-6">
               <label class="form-label">Unggah CSV</label>
               <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control">
-              <div class="d-flex align-items-center gap-2 mt-2">
+              <div class="d-flex align-items-center gap-3 mt-2">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="hasHeader" checked>
+                  <label class="form-check-label" for="hasHeader">Baris pertama adalah header</label>
+                </div>
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
               </div>
               <div class="form-text">Maksimal 1000 baris per unggahan.</div>
@@ -227,7 +239,11 @@
               <div class="mt-3">
                 <label class="form-label">Unggah ZIP Foto (opsional)</label>
                 <input type="file" name="images_zip" id="imagesZip" accept=".zip" class="form-control">
-                <div class="form-text">Cocokkan nama file ke <b>Serial</b> → <b>BMN</b> → <b>Nama</b>. JPG/PNG/WebP, ≤ 5 MB per file.</div>
+                <div class="form-text">
+                  Pencocokan foto berdasarkan <b>13 digit Nomor BMN</b> saja. Separator (<code>.</code>, <code>-</code>, spasi) di CSV & nama file <b>bebas</b>.
+                  Contoh nama file yang cocok: <code>3050104002068.jpg</code>, <code>3.05.01.04.002 - 068.png</code>.
+                  JPG/PNG/WebP, ≤ 5 MB per file.
+                </div>
               </div>
             </div>
 

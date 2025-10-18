@@ -16,7 +16,6 @@ class Qr extends BaseController
         ]);
     }
 
-    // Dipakai JS untuk refresh token CSRF
     public function diag()
     {
         return $this->response->setJSON(
@@ -24,11 +23,11 @@ class Qr extends BaseController
         );
     }
 
-    // (Opsional) panggil sekali untuk memastikan OPcache refresh
+    // opsional - hanya untuk dev bila perlu
     public function opcacheReset()
     {
         if (function_exists('opcache_reset')) @opcache_reset();
-        return $this->response->setJSON($this->withCsrf(['ok'=>true, 'time'=>date('c')]));
+        return $this->response->setJSON($this->withCsrf(['ok'=>true]));
     }
 
     private function withCsrf(array $payload): array
@@ -55,7 +54,8 @@ class Qr extends BaseController
             'lokasi'          => 'permit_empty|max_length[120]',
             'base'            => 'permit_empty|valid_url_strict',
             'kapasitas_btu'   => 'permit_empty|regex_match[/^\d{1,7}$/]',
-            'bmn_no_display'  => 'permit_empty|regex_match[/^\d{1,30}$/]',
+            // izinkan angka + . - spasi
+            'bmn_no_display'  => 'permit_empty|regex_match[/^[0-9.\-\s]{1,30}$/]',
             'status'          => 'permit_empty|in_list[NORMAL,RUSAK_RINGAN,RUSAK_BERAT]',
         ];
         if (!$this->validate($rules)) {
@@ -77,7 +77,10 @@ class Qr extends BaseController
 
         $kapBTU = (int)preg_replace('/\D+/', '', (string)($r->getPost('kapasitas_btu') ?? '12000'));
         if ($kapBTU <= 0) $kapBTU = 12000;
-        $bmn    = preg_replace('/\D+/', '', (string)($r->getPost('bmn_no_display') ?? ''));
+
+        // display yang aman
+        $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', (string)($r->getPost('bmn_no_display') ?? '')));
+        $bmnDigits = preg_replace('/\D+/', '', $bmnDisp);
 
         $AC    = new AcUnitModel();
         $table = $AC->table;
@@ -89,7 +92,6 @@ class Qr extends BaseController
         $uniques   = $this->listUniqueColumns($table);
         $hasSerial = isset($cols['serial_no']);
 
-        // Unik kode QR
         if (isset($cols['kode_qr'])) {
             if ($token === '') {
                 $token = $this->makeKodeQrUnique($AC);
@@ -101,7 +103,6 @@ class Qr extends BaseController
             }
         }
 
-        // nomor_unik
         $nomorUnik = $this->normalizeName($nama);
         $nomorUnik = mb_substr($nomorUnik, 0, 64, 'UTF-8');
         if (in_array('nomor_unik', $uniques, true)) {
@@ -119,16 +120,14 @@ class Qr extends BaseController
             'tipe_model'     => ($tipeModel !== '' ? $tipeModel : '-'),
             'kapasitas_btu'  => $kapBTU,
             'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
-            'bmn_no_display' => ($bmn !== '' ? $bmn : null),
+            'bmn_no_display' => ($bmnDisp !== '' ? $bmnDisp : null),
             'status_ac'      => $statusI,
         ];
         if ($hasSerial) $candidate['serial_no'] = ($serial !== '') ? $serial : null;
 
-        // pilih kolom yg ada
         $data = [];
         foreach ($candidate as $k => $v) if (isset($cols[$k])) $data[$k] = $v;
 
-        // enum guard
         if (isset($data['status_ac'], $cols['status_ac'])) {
             $allowed = $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null);
             if ($allowed && !in_array($data['status_ac'], $allowed, true)) {
@@ -136,7 +135,6 @@ class Qr extends BaseController
             }
         }
 
-        // default utk NOT NULL tanpa default
         foreach ($cols as $name => $meta) {
             if (!array_key_exists($name, $data)) {
                 $isNotNull = (strpos(strtoupper($meta['Null'] ?? ''), 'NO') !== false);
@@ -150,24 +148,18 @@ class Qr extends BaseController
             }
         }
 
-        // insert
         try {
             $id = $AC->protect(false)->insert($data, true);
             if ($id === false) {
                 return $this->response->setJSON($this->withCsrf([
                     'error'      => 'Gagal simpan (validasi model)',
                     'validation' => $AC->errors(),
-                    'db_error'   => $AC->db->error(),
-                    'last_query' => (string)$AC->db->getLastQuery(),
                 ]))->setStatusCode(422);
             }
         } catch (DatabaseException $e) {
             return $this->response->setJSON($this->withCsrf([
-                'error'      => 'DB exception',
-                'message'    => $e->getMessage(),
-                'db_error'   => $AC->db->error(),
-                'last_query' => (string)$AC->db->getLastQuery(),
-                'data'       => $data,
+                'error'    => 'DB exception',
+                'message'  => $e->getMessage(),
             ]))->setStatusCode(500);
         } catch (\Throwable $e) {
             return $this->response->setJSON($this->withCsrf([
@@ -197,9 +189,11 @@ class Qr extends BaseController
     }
 
     /**
-     * BULK CSV + ZIP foto (opsional)
-     * CSV 12 kolom: Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status,
-     *               Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service (DD-MM-YYYY), Terakhir Perawatan (DD-MM-YYYY)
+     * BULK: rows(JSON) + images_zip (opsional)
+     * CSV 12 kolom urut:
+     * Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status,
+     * Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service (DD-MM-YYYY), Terakhir Perawatan (DD-MM-YYYY)
+     * Foto ZIP: BMN-only (13 digit), separator di nama file bebas.
      */
     public function bulkSave()
     {
@@ -210,7 +204,7 @@ class Qr extends BaseController
 
         @set_time_limit(180);
 
-        // Ambil rows dari POST (FormData) atau raw JSON body
+        // Ambil rows
         $rows = null;
         $rowsRaw = $this->request->getPost('rows');
         if ($rowsRaw) {
@@ -229,16 +223,12 @@ class Qr extends BaseController
                                   ->setStatusCode(422);
         }
 
-        // Normalisasi -> assoc; skip non-array
+        // Normalisasi -> array index 0..11
         $norm = [];
         $skippedNonArray = 0;
         foreach ($rows as $r) {
-            if (!is_array($r)) { // << penting
-                $skippedNonArray++;
-                continue;
-            }
+            if (!is_array($r)) { $skippedNonArray++; continue; }
 
-            // numeric-indexed (hasil parse CSV)
             if (array_values($r) === $r) {
                 $norm[] = [
                     'nama'                    => trim((string)($r[0]  ?? '')),
@@ -257,37 +247,25 @@ class Qr extends BaseController
                 continue;
             }
 
-            // assoc-indexed (JSON); dukung alias kunci typo
+            // assoc: support alias ringan
             $norm[] = [
                 'nama'   => trim((string)($r['nama'] ?? '')),
                 'merek'  => trim((string)($r['merek'] ?? '')),
                 'model'  => trim((string)($r['model'] ?? '')),
-                'serial_no' => trim((string)($this->firstNotEmpty($r, ['serial_no','serial','sn','serial number']) ?? '')),
+                'serial_no' => trim((string)($this->firstNotEmpty($r, ['serial_no','serial','sn']) ?? '')),
                 'lokasi'    => trim((string)($this->firstNotEmpty($r, ['lokasi','location']) ?? '')),
-
-                'kapasitas_btu'  => (string)($this->firstNotEmpty($r, ['kapasitas_btu','btu','kapasitas']) ?? ''),
-                'bmn_no_display' => (string)($this->firstNotEmpty($r, ['bmn_no_display','nomor_bmn','no_bmn','bmn']) ?? ''),
+                'kapasitas_btu'  => (string)($this->firstNotEmpty($r, ['kapasitas_btu','btu']) ?? ''),
+                'bmn_no_display' => (string)($this->firstNotEmpty($r, ['bmn_no_display','no_bmn','bmn']) ?? ''),
                 'status'         => (string)($this->firstNotEmpty($r, ['status','status_ac']) ?? 'NORMAL'),
-
-                'tekanan_freon_terakhir' => (string)($this->firstNotEmpty($r, [
-                    'tekanan_freon_terakhir','freon_terakhir','tekanan_freon','freon'
-                ]) ?? ''),
-                'amper_terakhir' => (string)($this->firstNotEmpty($r, [
-                    'amper_terakhir','amper.terakhir','amper terakhir','amper'
-                ]) ?? ''),
-
-                'terakhir_service' => (string)($this->firstNotEmpty($r, [
-                    'terakhir_service','tgl_service','service_terakhir','ter.service','terakhir service'
-                ]) ?? ''),
-                'terakhir_perawatan' => (string)($this->firstNotEmpty($r, [
-                    'terakhir_perawatan','akhir_perawatan','tgl_perawatan','perawatan_terakhir','terakhir perawatan'
-                ]) ?? ''),
-                'token' => (string)($this->firstNotEmpty($r, ['token','kode_qr']) ?? ''),
+                'tekanan_freon_terakhir' => (string)($this->firstNotEmpty($r, ['tekanan_freon_terakhir','freon']) ?? ''),
+                'amper_terakhir'         => (string)($this->firstNotEmpty($r, ['amper_terakhir','amper']) ?? ''),
+                'terakhir_service'       => (string)($this->firstNotEmpty($r, ['terakhir_service','tgl_service']) ?? ''),
+                'terakhir_perawatan'     => (string)($this->firstNotEmpty($r, ['terakhir_perawatan','tgl_perawatan']) ?? ''),
             ];
         }
 
         $maxRows = 1000;
-        if (count($norm) === 0) {
+        if (!count($norm)) {
             return $this->response->setJSON($this->withCsrf([
                 'error'   => 'Tidak ada baris data valid',
                 'skipped' => $skippedNonArray,
@@ -313,10 +291,12 @@ class Qr extends BaseController
             ? $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null)
             : ['NORMAL','RUSAK_RINGAN','RUSAK_BERAT'];
 
-        // ZIP foto (opsional)
+        // ZIP foto → BMN-only index
         $zipFile = $this->request->getFile('images_zip');
         $imgIndex = [];
+        $zipDuplicates = [];
         $tmpDir = null;
+
         if ($zipFile && $zipFile->isValid() && strtolower($zipFile->getClientExtension()) === 'zip') {
             $maxZipMB = 100;
             if ($zipFile->getSizeByUnit('mb') > $maxZipMB) {
@@ -344,9 +324,15 @@ class Qr extends BaseController
                 if (!$f->isFile()) continue;
                 $ext = strtolower($f->getExtension());
                 if (!in_array($ext, ['jpg','jpeg','png','webp'], true)) continue;
+
                 $base = pathinfo($f->getFilename(), PATHINFO_FILENAME);
-                foreach ($this->makeImageKeys($base) as $k) {
-                    if ($k !== '') $imgIndex[$k] = $f->getPathname();
+                $key13 = $this->extractBmnKey($base); // 13 digit only
+                if ($key13) {
+                    if (!isset($imgIndex[$key13])) {
+                        $imgIndex[$key13] = $f->getPathname();
+                    } else {
+                        $zipDuplicates[] = $f->getPathname(); // duplikat, abaikan
+                    }
                 }
             }
         }
@@ -363,38 +349,33 @@ class Qr extends BaseController
                     continue;
                 }
 
-                // angka-only
                 $kapBTU = (int)preg_replace('/\D+/', '', (string)($row['kapasitas_btu'] ?? '12000'));
                 if ($kapBTU <= 0) $kapBTU = 12000;
-                $bmn = preg_replace('/\D+/', '', (string)($row['bmn_no_display'] ?? ''));
 
-                // desimal
+                $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', (string)($row['bmn_no_display'] ?? '')));
+                $bmnDigits = preg_replace('/\D+/', '', $bmnDisp);
+
                 $freon = $this->toDecimal($row['tekanan_freon_terakhir'] ?? null);
                 $amper = $this->toDecimal($row['amper_terakhir'] ?? null);
 
-                // tanggal: STRICT DD-MM-YYYY -> simpan Y-m-d (DB)
                 $tglService = $this->toDateDdMmYyyyStrict($row['terakhir_service'] ?? null);
                 $tglRawat   = $this->toDateDdMmYyyyStrict($row['terakhir_perawatan'] ?? null);
 
-                // status
                 $statusI = strtoupper(trim((string)($row['status'] ?: 'NORMAL')));
                 $statusI = str_replace(' ', '_', $statusI);
                 if (!in_array($statusI, $allowedStatus, true)) {
                     $statusI = $allowedStatus[0] ?? 'NORMAL';
                 }
 
-                // token unik
                 $AC->resetQuery();
-                $token = trim((string)($row['token'] ?? ''));
+                $token = '';
                 if ($hasKode) {
-                    if ($token === '' || $AC->where('kode_qr', $token)->first()) {
+                    $token = bin2hex(random_bytes(16));
+                    if ($AC->where('kode_qr', $token)->first()) {
                         $token = $this->makeKodeQrUnique($AC);
                     }
-                } else {
-                    $token = null;
                 }
 
-                // nomor_unik
                 $nomorUnik = $this->normalizeName((string)$row['nama']);
                 $nomorUnik = mb_substr($nomorUnik, 0, 64, 'UTF-8');
                 if (in_array('nomor_unik', $uniques, true)) {
@@ -417,7 +398,7 @@ class Qr extends BaseController
                     'tipe_model'     => ($tipeModel !== '' ? $tipeModel : '-'),
                     'kapasitas_btu'  => $kapBTU,
                     'lokasi'         => ($lokasi !== '' ? $lokasi : '-'),
-                    'bmn_no_display' => ($bmn !== '' ? $bmn : null),
+                    'bmn_no_display' => ($bmnDisp !== '' ? $bmnDisp : null),
                     'status_ac'      => $statusI,
                     'tekanan_freon_terakhir' => $freon,
                     'amper_terakhir'         => $amper,
@@ -426,11 +407,9 @@ class Qr extends BaseController
                 ];
                 if ($hasSerial) $candidate['serial_no'] = ($serial !== '') ? $serial : null;
 
-                // pilih kolom yg ada
                 $data = [];
                 foreach ($candidate as $k => $v) if (isset($cols[$k])) $data[$k] = $v;
 
-                // enum guard
                 if (isset($data['status_ac'], $cols['status_ac'])) {
                     $allowed = $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null);
                     if ($allowed && !in_array($data['status_ac'], $allowed, true)) {
@@ -438,7 +417,6 @@ class Qr extends BaseController
                     }
                 }
 
-                // default utk NOT NULL tanpa default
                 foreach ($cols as $name => $meta) {
                     if (!array_key_exists($name, $data)) {
                         $isNotNull = (strpos(strtoupper($meta['Null'] ?? ''), 'NO') !== false);
@@ -452,42 +430,35 @@ class Qr extends BaseController
                     }
                 }
 
-                // insert
                 try {
                     $id = $AC->protect(false)->insert($data, true);
                     if ($id === false) {
                         $results[] = [
                             'row'=>$rowNum,'ok'=>false,'error'=>'Gagal simpan (validasi model)',
-                            'validation'=>$AC->errors(),'db_error'=>$AC->db->error(),
+                            'validation'=>$AC->errors()
                         ];
                         continue;
                     }
                 } catch (DatabaseException $e) {
-                    $results[] = ['row'=>$rowNum,'ok'=>false,'error'=>'DB exception: '.$e->getMessage(),'db_error'=>$AC->db->error()];
+                    $results[] = ['row'=>$rowNum,'ok'=>false,'error'=>'DB exception: '.$e->getMessage()];
                     continue;
                 }
 
-                // FOTO dari ZIP: match Serial -> BMN -> Nama
-                $imgSaved = false; $usedKey = null;
-                if (!empty($imgIndex)) {
-                    $keys = [];
-                    if ($serial !== '') $keys = array_merge($keys, $this->makeImageKeys($serial));
-                    if ($bmn    !== '') $keys = array_merge($keys, $this->makeImageKeys($bmn));
-                    $keys = array_merge($keys, $this->makeImageKeys($row['nama']));
+                // FOTO BMN-only
+                $imgSaved = false; 
+                $usedKey = null;
 
-                    $srcPath = null;
-                    foreach (array_unique($keys) as $k) {
-                        if ($k !== '' && isset($imgIndex[$k])) {
-                            $srcPath = $imgIndex[$k];
-                            $usedKey = $k;
-                            unset($imgIndex[$k]);
-                            break;
-                        }
-                    }
-                    if ($srcPath) {
-                        $destDir = FCPATH.'uploads/ac_units/'.$id;
-                        if (is_dir($destDir) || @mkdir($destDir, 0775, true) || is_dir($destDir)) {
-                            $imgSaved = $this->processAndSaveImage($srcPath, $destDir);
+                if (!empty($imgIndex)) {
+                    // BMN harus 13 digit untuk bisa match
+                    if ($bmnDigits !== '' && strlen($bmnDigits) === 13) {
+                        if (isset($imgIndex[$bmnDigits])) {
+                            $srcPath = $imgIndex[$bmnDigits];
+                            $usedKey = $bmnDigits;
+                            unset($imgIndex[$bmnDigits]);
+                            $destDir = FCPATH.'uploads/ac_units/'.$id;
+                            if (is_dir($destDir) || @mkdir($destDir, 0775, true) || is_dir($destDir)) {
+                                $imgSaved = $this->processAndSaveImage($srcPath, $destDir);
+                            }
                         }
                     }
                 }
@@ -501,7 +472,6 @@ class Qr extends BaseController
                     'foto_key' => $usedKey,
                 ];
             } catch (\Throwable $e) {
-                // <= Tangkep error per baris (dapat file & line)
                 $results[] = [
                     'row'=>$rowNum,'ok'=>false,'error'=>'Row exception: '.$e->getMessage(),
                     'file'=>$e->getFile(),'line'=>$e->getLine(),
@@ -519,6 +489,7 @@ class Qr extends BaseController
             'failed'   => count($norm) - $okCount,
             'skipped'  => $skippedNonArray,
             'results'  => $results,
+            'zip_dup_count' => count($zipDuplicates),
         ]));
     }
 
@@ -595,11 +566,13 @@ class Qr extends BaseController
         return array_map(fn($v) => trim($v, " '"), $vals);
     }
 
-    private function makeImageKeys(string $s): array
+    /** Ambil BMN 13 digit dari string filename; kembalikan null jika tidak ada */
+    private function extractBmnKey(string $s): ?string
     {
-        $alnum  = strtoupper(preg_replace('/[^0-9A-Za-z]+/', '', (string)$s));
-        $digits = preg_replace('/\D+/', '', (string)$s);
-        return array_values(array_unique(array_filter([$alnum, $digits])));
+        if (preg_match('/(\d{13})/', $s, $m)) return $m[1];
+        $digits = preg_replace('/\D+/', '', $s);
+        if ($digits && strlen($digits) === 13) return $digits;
+        return null;
     }
 
     private function toDecimal(?string $s): ?string
@@ -614,45 +587,39 @@ class Qr extends BaseController
         return null;
     }
 
-    // Input: "DD-MM-YYYY" -> output "YYYY-MM-DD"; invalid -> null (tanpa error)
+    // "DD-MM-YYYY" -> "Y-m-d"; invalid -> null
     private function toDateDdMmYyyyStrict(?string $s): ?string
     {
         $s = trim((string)$s);
         if ($s === '') return null;
-
-        // hanya format DD-MM-YYYY (dua digit semua)
         if (!preg_match('/^\d{2}-\d{2}-\d{4}$/', $s)) return null;
 
         $dt = \DateTime::createFromFormat('d-m-Y', $s);
         if (!$dt) return null;
 
-        // getLastErrors() bisa FALSE jika tidak ada error/warning
         $errs = \DateTime::getLastErrors();
         if (is_array($errs)) {
             $warn = (int)($errs['warning_count'] ?? 0);
             $errc = (int)($errs['error_count'] ?? 0);
-            if ($warn > 0 || $errc > 0) {
-                return null;
-            }
+            if ($warn > 0 || $errc > 0) return null;
         }
 
-        return $dt->format('Y-m-d'); // format DB
+        return $dt->format('Y-m-d');
     }
 
-
-    // Resize+compress jpg (≤1600px) — tolak >5MB atau >12MP
+    // Resize+compress jpg (≤1600px), tolak >5MB or >12MP; EXIF safe
     private function processAndSaveImage(string $srcPath, string $destDir, int $maxW = 1600, int $maxH = 1600): bool
     {
         if (!is_file($srcPath)) return false;
         $size = @filesize($srcPath);
-        if ($size !== false && $size > 5 * 1024 * 1024) return false; // >5MB tolak
+        if ($size !== false && $size > 5 * 1024 * 1024) return false;
 
         $info = @getimagesize($srcPath);
         if (!is_array($info) || count($info) < 3) return false;
         $w = (int)($info[0] ?? 0);
         $h = (int)($info[1] ?? 0);
         $type = (int)($info[2] ?? 0);
-        if ($w <= 0 || $h <= 0 || $w * $h > 12000000) return false; // >12MP tolak
+        if ($w <= 0 || $h <= 0 || $w * $h > 12000000) return false;
 
         switch ($type) {
             case IMAGETYPE_JPEG: $src = @imagecreatefromjpeg($srcPath); break;
@@ -662,14 +629,12 @@ class Qr extends BaseController
         }
         if (!$src) return false;
 
-        // Perbaikan: EXIF bisa false → cek is_array()
         if ($type === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
             $ort = 1;
             $exif = @exif_read_data($srcPath, null, true);
             if (is_array($exif)) {
-                // beberapa file menaruh di IFD0, sebagian di root
-                if (isset($exif['IFD0']['Orientation']))      $ort = (int)$exif['IFD0']['Orientation'];
-                elseif (isset($exif['Orientation']))          $ort = (int)$exif['Orientation'];
+                if (isset($exif['IFD0']['Orientation'])) $ort = (int)$exif['IFD0']['Orientation'];
+                elseif (isset($exif['Orientation']))      $ort = (int)$exif['Orientation'];
             }
             if ($ort >= 2 && $ort <= 8) {
                 $src = $this->applyExifOrientation($src, $ort);
@@ -684,7 +649,6 @@ class Qr extends BaseController
         if ($nw <= 0 || $nh <= 0) { imagedestroy($src); return false; }
 
         $dst = imagecreatetruecolor($nw, $nh);
-        // latar putih agar PNG/WebP transparan tidak jadi hitam
         $white = imagecolorallocate($dst, 255, 255, 255);
         imagefill($dst, 0, 0, $white);
         imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
@@ -696,7 +660,6 @@ class Qr extends BaseController
         imagedestroy($src);
         return (bool)$ok;
     }
-
 
     private function applyExifOrientation($img, int $ort)
     {

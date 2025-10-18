@@ -252,7 +252,7 @@
       }
     });
 
-    // Limiters
+    // ===== Limiters & Masking =====
     function digitsOnly(el, maxLen = null) {
       if (!el) return;
       const toDigits = (v) => (v || "").replace(/\D+/g, "");
@@ -280,8 +280,48 @@
         if (c < 48 || c > 57) e.preventDefault();
       });
     }
+
+    // BMN mask: ketik 13 digit → tampil "X.XX.XX.XX.XXX - XXX"
+    function formatBmnFromDigits(digs) {
+      const d = (digs || "").replace(/\D+/g, "").slice(0, 13);
+      const seg = [1, 2, 2, 2, 3, 3];
+      let out = "",
+        i = 0;
+      for (let idx = 0; idx < seg.length; idx++) {
+        const take = seg[idx];
+        const part = d.slice(i, i + take);
+        out += part;
+        i += part.length;
+        if (part.length < take) break; // belum penuh → stop separator
+        if (idx === 0 || idx === 1 || idx === 2 || idx === 3) out += ".";
+        if (idx === 4) out += " - ";
+      }
+      // buang dot di akhir kalau incomplete
+      out = out.replace(/\.$/, "");
+      // buang " - " di akhir kalau belum ada reg
+      out = out.replace(/\s-\s$/, "");
+      return out;
+    }
+    function bmnAutoMask(el) {
+      if (!el) return;
+      const apply = () => {
+        const digits = el.value.replace(/\D+/g, "");
+        el.value = formatBmnFromDigits(digits);
+      };
+      el.addEventListener("input", apply);
+      el.addEventListener("paste", (e) => {
+        e.preventDefault();
+        const t =
+          (e.clipboardData || window.clipboardData).getData("text") || "";
+        el.value = formatBmnFromDigits(t);
+      });
+      // inisialisasi awal bila ada nilai
+      apply();
+    }
+
     digitsOnly(document.getElementById("kapasitas_btu"), 7);
-    digitsOnly(document.getElementById("bmn_no_display"), 30);
+    bmnAutoMask(document.getElementById("bmn_no_display")); // <-- pakai masker BMN
+
     ["nama", "merek", "model", "lokasi"].forEach((n) => {
       const el = form?.querySelector(`[name="${n}"]`);
       el?.addEventListener("blur", () => {
@@ -315,9 +355,10 @@
       }
     }
     function applyStatusBadge(code) {
-      if (!pvBadge) return;
-      pvBadge.className = classForStatus(code);
-      pvBadge.textContent = labelStatus(code);
+      const el = pvBadge;
+      if (!el) return;
+      el.className = classForStatus(code);
+      el.textContent = labelStatus(code);
     }
 
     // SUBMIT
@@ -346,22 +387,25 @@
         .toUpperCase()
         .replace(/\s+/g, "_");
 
-      const bmn = ((fd.get("bmn_no_display") || "") + "").replace(/\D+/g, "");
+      // BMN: ambil apa adanya (sudah termask), tapi hard-sanitize safe chars
+      const bmn = ((fd.get("bmn_no_display") || "") + "")
+        .replace(/[^0-9.\-\s]+/g, "")
+        .trim();
       const kap =
         ((fd.get("kapasitas_btu") || "") + "").replace(/\D+/g, "") || "12000";
 
-      // normalisasi nama field untuk backend:
-      fd.set("nomor_unik", nama); // CI pakai 'nomor_unik'
+      // normalisasi field utk backend
+      fd.set("nomor_unik", nama);
       fd.set(
         "tipe_model",
         (merek ? merek.toUpperCase() + " " : "") + (model || "")
-      ); // gabungkan merek + model
-      fd.set("serial_no", serial); // ← penting: simpan ke kolom serial_no
+      );
+      fd.set("serial_no", serial);
       fd.set("lokasi", lokasi);
-      fd.set("bmn_no_display", bmn);
+      fd.set("bmn_no_display", bmn); // kirim display
       fd.set("kapasitas_btu", kap);
-      fd.set("status_ac", status); // banyak endpoint pakai status_ac
-      fd.set("status", status); // jaga-jaga jika endpoint lama pakai 'status'
+      fd.set("status_ac", status);
+      fd.set("status", status);
 
       const token = randomHex(16);
       const url = base.replace(/\/+$/, "") + "/ac/" + token;
@@ -413,7 +457,7 @@
             } catch {}
           }
 
-          // refresh CSRF jika ada
+          // refresh CSRF
           if (js && js.csrf && js.csrf_token) {
             const inp = form.querySelector(`input[name="${js.csrf_token}"]`);
             if (inp) inp.value = js.csrf;
@@ -562,7 +606,7 @@
         nama: state.nama,
         merek: state.merek || null,
         model: state.model || null,
-        serial_no: state.serial || null, // tetap serial_no
+        serial_no: state.serial || null,
         bmn_no_display: state.bmn || null,
         kapasitas_btu: state.kap || "12000",
         lokasi: state.lokasi || null,

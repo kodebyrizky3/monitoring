@@ -96,9 +96,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
                 // Export
                 $routes->get('export', 'Admin\AcUnits::export', ['as' => 'admin.ac.export']);
-                $routes->get('admin/qr/opcache-reset', 'Admin\Qr::opcacheReset');
-
-
+                
             });
         });
 
@@ -192,9 +190,3 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
 });
 
-/* -----------------------------
- * Environment-based routes
- * ----------------------------- */
-if (is_file(APPPATH . 'Config/' . ENVIRONMENT . '/Routes.php')) {
-    require APPPATH . 'Config/' . ENVIRONMENT . '/Routes.php';
-}
