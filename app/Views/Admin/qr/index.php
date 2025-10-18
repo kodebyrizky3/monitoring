@@ -215,7 +215,7 @@
             <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
           </div>
 
-          <div class="row g-3">
+          <div class="row g-1">
             <div class="col-lg-6">
               <label class="form-label">Unggah CSV</label>
               <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control">
