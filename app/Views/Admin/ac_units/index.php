@@ -1,9 +1,8 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.2.1">
+<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.6.0">
 <style>
-  /* tambahan kecil agar klik enak */
   .emp-table .col-select{ width:42px; }
   .form-check-input.table-check{ width:1.05rem; height:1.05rem; cursor:pointer; }
 </style>
@@ -25,7 +24,6 @@
       </div>
     </div>
   </div>
-
   <div class="col-12 col-xl-3 col-md-6">
     <div class="card shadow-sm card-stat bg-warning text-dark">
       <div class="card-body">
@@ -38,7 +36,6 @@
       </div>
     </div>
   </div>
-
   <div class="col-12 col-xl-3 col-md-6">
     <div class="card shadow-sm card-stat bg-danger">
       <div class="card-body">
@@ -51,7 +48,6 @@
       </div>
     </div>
   </div>
-
   <div class="col-12 col-xl-3 col-md-6">
     <div class="card shadow-sm card-stat bg-success">
       <div class="card-body">
@@ -66,7 +62,7 @@
   </div>
 </div>
 
-<!-- Toolbar (compact) -->
+<!-- Toolbar -->
 <div class="card shadow-sm toolbar-card mb-3">
   <div class="card-body compact">
     <form class="row gy-2 gx-2 align-items-center" onsubmit="return false;">
@@ -74,8 +70,7 @@
         <label class="form-label">Cari</label>
         <div class="input-group">
           <span class="input-group-text"><i class="bi bi-search"></i></span>
-          <input type="text" id="qInput" class="form-control"
-                 placeholder="Nama / Tipe / Kapasitas / BMN / Lokasi">
+          <input type="text" id="qInput" class="form-control" placeholder="Nama / Tipe / Kapasitas / BMN / Lokasi">
         </div>
       </div>
 
@@ -98,7 +93,6 @@
         </select>
       </div>
 
-      <!-- Aksi: tetap 1 baris di desktop, wrap rapi di mobile -->
       <div class="col-12 col-lg-auto ms-lg-auto">
         <div class="toolbar-actions">
           <button type="button" id="btnBulkDelete" class="btn btn-bulk-del btn-slim" disabled>
@@ -113,11 +107,9 @@
         </div>
       </div>
     </form>
-
     <div id="liveInfo" class="small text-muted mt-1"></div>
   </div>
 </div>
-
 
 <!-- Tabel -->
 <div class="card shadow-sm">
@@ -128,12 +120,12 @@
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-striped align-middle mb-0 emp-table table-hover">
-        <thead class="table-light">
+        <thead class="table-light sticky-head">
           <tr>
             <th class="col-select">
               <input type="checkbox" id="chkAll" class="form-check-input table-check" title="Pilih semua">
             </th>
-            <th class="col-id">ID</th>
+            <th class="col-id">No</th>
             <th class="col-nama">Nama</th>
             <th class="col-tipe">Tipe/Model</th>
             <th class="col-btu">Kapasitas (BTU)</th>
@@ -146,22 +138,31 @@
         <tbody id="acTbody">
           <?php if (empty($rows ?? [])): ?>
             <tr><td colspan="9" class="text-center text-muted">Belum ada data.</td></tr>
-          <?php else: foreach ($rows as $r):
-            $st = (string)($r['status_ac'] ?? '');
-            $badge = ['NORMAL'=>'success','RUSAK_RINGAN'=>'warning','RUSAK_BERAT'=>'danger'][$st] ?? 'secondary';
+          <?php else:
+            $no = 1;
+            foreach ($rows as $r):
+              $st = (string)($r['status_ac'] ?? '');
+              $badge = ['NORMAL'=>'success','RUSAK_RINGAN'=>'warning','RUSAK_BERAT'=>'danger'][$st] ?? 'secondary';
           ?>
             <tr>
-              <td class="col-select">
+              <td class="col-select" data-th="Pilih">
                 <input type="checkbox" class="form-check-input table-check row-check" value="<?= (int)$r['id'] ?>">
               </td>
-              <td><?= esc($r['id']) ?></td>
-              <td class="col-nama"><?= esc($r['nomor_unik']) ?></td>
-              <td class="col-tipe"><?= esc($r['tipe_model']) ?></td>
-              <td class="col-btu"><?= esc($r['kapasitas_btu'] ?? '-') ?></td>
-              <td class="col-bmn"><?= esc($r['bmn_no_display'] ?? '-') ?></td>
-              <td class="col-lokasi"><?= esc($r['lokasi']) ?></td>
-              <td><span class="badge bg-<?= $badge ?>"><?= esc($st) ?></span></td>
-              <td class="text-end col-aksi">
+              <td class="col-id" data-th="No"><?= $no++ ?></td>
+              <td class="col-nama" data-th="Nama">
+                <div class="cell-name">
+                  <div class="nm text-truncate" title="<?= esc($r['nomor_unik']) ?>"><?= esc($r['nomor_unik']) ?></div>
+                  <?php if (!empty($r['serial_no'])): ?>
+                    <div class="sub">SN: <?= esc($r['serial_no']) ?></div>
+                  <?php endif; ?>
+                </div>
+              </td>
+              <td class="col-tipe" data-th="Tipe/Model"><?= esc($r['tipe_model']) ?></td>
+              <td class="col-btu"  data-th="Kapasitas (BTU)"><?= esc($r['kapasitas_btu'] ?? '-') ?></td>
+              <td class="col-bmn"  data-th="No. BMN"><?= esc($r['bmn_no_display'] ?? '-') ?></td>
+              <td class="col-lokasi" data-th="Lokasi"><?= esc($r['lokasi']) ?></td>
+              <td class="col-status" data-th="Status"><span class="badge bg-<?= $badge ?>"><?= esc($st) ?></span></td>
+              <td class="text-end col-aksi" data-th="Aksi">
                 <div class="action-wrap">
                   <a class="btn btn-outline-secondary btn-sm" href="<?= route_to('admin.ac.show',$r['id']) ?>" title="Detail"><i class="bi bi-eye"></i></a>
                   <a class="btn btn-outline-primary btn-sm"  href="<?= route_to('admin.ac.edit',$r['id']) ?>" title="Edit"><i class="bi bi-pencil"></i></a>
@@ -192,7 +193,6 @@
 <!-- Bulk delete form -->
 <form id="bulkDeleteForm" class="d-none" method="post" action="<?= route_to('admin.ac.bulk_delete') ?>">
   <?= csrf_field() ?>
-  <input type="hidden" name="ids" id="bulkIds">
 </form>
 
 <?= $this->endSection() ?>
@@ -209,5 +209,5 @@
     }
   };
 </script>
-<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=1.7.1"></script>
+<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=2.4.0"></script>
 <?= $this->endSection() ?>

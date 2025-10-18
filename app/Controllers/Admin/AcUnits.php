@@ -11,12 +11,34 @@ class AcUnits extends BaseController
 {
     private const ALLOWED_STATUS = ['NORMAL','RUSAK_RINGAN','RUSAK_BERAT'];
 
+    private function hasColumn(string $table, string $col): bool
+    {
+        $db = \Config\Database::connect();
+        try {
+            $fields = $db->getFieldNames($table);
+            return in_array($col, $fields, true);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     /* LIST (render awal + angka kartu) */
     public function index()
     {
-        $AC   = new AcUnitModel();
-        $list = $AC->select('id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac')
-                   ->orderBy('id','DESC')->findAll(10);
+        $AC        = new AcUnitModel();
+        $table     = 'ac_units';
+        $hasSerial = $this->hasColumn($table, 'serial_no');
+
+        $select = 'id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac';
+        if ($hasSerial) $select .= ',serial_no';
+
+        $list = $AC->select($select)->orderBy('id','DESC')->findAll(10);
+
+        // inject sn dari serial_no
+        $list = array_map(static function(array $r) use ($hasSerial){
+            $r['sn'] = $hasSerial ? trim((string)($r['serial_no'] ?? '')) : '';
+            return $r;
+        }, $list ?? []);
 
         return view('Admin/ac_units/index', [
             'title'      => 'Data Alat · AC',
@@ -26,7 +48,7 @@ class AcUnits extends BaseController
         ]);
     }
 
-    /* ====== ENDPOINT SEARCH (JSON) untuk tabel + refresh kartu ====== */
+    /* ====== ENDPOINT SEARCH (JSON) ====== */
     public function search()
     {
         $q       = trim($this->request->getGet('q') ?? '');
@@ -35,19 +57,25 @@ class AcUnits extends BaseController
         $page    = max((int)($this->request->getGet('page') ?? 1), 1);
         $offset  = ($page - 1) * $perPage;
 
-        $m = new AcUnitModel();
-        $b = $m->select('id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac')
-               ->orderBy('id','DESC');
+        $m         = new AcUnitModel();
+        $table     = 'ac_units';
+        $hasSerial = $this->hasColumn($table, 'serial_no');
+
+        $select = 'id,kode_qr,nomor_unik,tipe_model,kapasitas_btu,bmn_no_display,lokasi,status_ac';
+        if ($hasSerial) $select .= ',serial_no';
+
+        $b = $m->select($select)->orderBy('id','DESC');
 
         if ($q !== '') {
             $b = $b->groupStart()
-                    ->like('kode_qr', $q)
-                    ->orLike('nomor_unik', $q)
-                    ->orLike('tipe_model', $q)
-                    ->orLike('kapasitas_btu', $q)
-                    ->orLike('bmn_no_display', $q)
-                    ->orLike('lokasi', $q)
-                 ->groupEnd();
+                   ->like('kode_qr', $q)
+                   ->orLike('nomor_unik', $q)
+                   ->orLike('tipe_model', $q)
+                   ->orLike('kapasitas_btu', $q)
+                   ->orLike('bmn_no_display', $q)
+                   ->orLike('lokasi', $q);
+            if ($hasSerial) $b = $b->orLike('serial_no', $q);
+            $b = $b->groupEnd();
         }
         if ($status !== '' && in_array($status, self::ALLOWED_STATUS, true)) {
             $b = $b->where('status_ac', $status);
@@ -60,9 +88,10 @@ class AcUnits extends BaseController
         // page data
         $rows = $b->limit($perPage, $offset)->get()->getResultArray();
 
-        // siapkan URL aksi buat tabel
-        $data = array_map(static function(array $r){
+        // siapkan URL + SN
+        $data = array_map(function(array $r) use ($hasSerial) {
             $id = (int)$r['id'];
+            $sn = $hasSerial ? trim((string)($r['serial_no'] ?? '')) : '';
             return [
                 'id'             => $id,
                 'kode_qr'        => (string)($r['kode_qr'] ?? ''),
@@ -72,6 +101,8 @@ class AcUnits extends BaseController
                 'bmn_no_display' => (string)($r['bmn_no_display'] ?? ''),
                 'lokasi'         => (string)($r['lokasi'] ?? ''),
                 'status_ac'      => (string)($r['status_ac'] ?? ''),
+                'serial_no'      => $hasSerial ? (string)($r['serial_no'] ?? '') : '',
+                'sn'             => $sn,
                 'show_url'       => route_to('admin.ac.show', $id),
                 'edit_url'       => route_to('admin.ac.edit', $id),
                 'dl_qr_url'      => route_to('admin.ac.qr.download', $id),
@@ -99,20 +130,85 @@ class AcUnits extends BaseController
         if (!$row) return redirect()->route('admin.ac.index')->with('err','Data tidak ditemukan');
 
         [$merek,$model] = $this->splitBrandModel($row['tipe_model'] ?? '');
-        $sn = $this->extractSn($row['catatan'] ?? null);
+        $sn = $this->hasColumn('ac_units','serial_no') ? trim((string)($row['serial_no'] ?? '')) : '';
 
+        // Riwayat perbaikan
         $Rep     = new AcRepairModel();
         $repairs = $Rep->listByAc($id);
 
+        // ==== Terakhir servis (repair terbaru apa pun) ====
+        $lastServiceAt = null;
+        if (!empty($repairs)) {
+            foreach ($repairs as $rp) {
+                if (!empty($rp['submitted_at'])) {
+                    $ts = strtotime($rp['submitted_at']);
+                    if ($ts && ($lastServiceAt === null || $ts > strtotime($lastServiceAt))) {
+                        $lastServiceAt = date('Y-m-d H:i:s', $ts);
+                    }
+                }
+            }
+        }
+
+        // ==== Terakhir perawatan (kolom khusus atau deteksi dari isi) ====
+        $lastMaintenanceAt = $row['last_maintenance_at'] ?? null;
+        if (!$lastMaintenanceAt && !empty($repairs)) {
+            $maxMt = null;
+            foreach ($repairs as $rp) {
+                $isMaintenance = false;
+                if (!empty($rp['jenis']) && strtoupper($rp['jenis']) === 'PERAWATAN') $isMaintenance = true;
+                elseif (!empty($rp['type']) && strtoupper($rp['type']) === 'PERAWATAN') $isMaintenance = true;
+                else {
+                    $txt = strtoupper(trim(($rp['tindakan'] ?? '') . ' ' . ($rp['hasil_perbaikan'] ?? '')));
+                    if ($txt !== '' && (str_contains($txt,'RAWAT') || str_contains($txt,'PERAWATAN'))) $isMaintenance = true;
+                }
+                if ($isMaintenance && !empty($rp['submitted_at'])) {
+                    $ts = strtotime($rp['submitted_at']);
+                    if ($ts && ($maxMt === null || $ts > $maxMt)) $maxMt = $ts;
+                }
+            }
+            if ($maxMt) $lastMaintenanceAt = date('Y-m-d H:i:s', $maxMt);
+        }
+
+        // ==== Tekanan freon & ampere terakhir (nilai + waktu) ====
+        $lastFreon    = null;
+        $lastFreonAt  = null;
+        $lastAmper    = null;
+        $lastAmperAt  = null;
+
+        if (!empty($repairs)) {
+            // sort desc by submitted_at supaya ketemu tercepat
+            usort($repairs, static function($a,$b){
+                return strtotime($b['submitted_at'] ?? '1970-01-01') <=> strtotime($a['submitted_at'] ?? '1970-01-01');
+            });
+            foreach ($repairs as $rp) {
+                if ($lastFreon === null) {
+                    $val = $rp['tekanan_freon'] ?? ($rp['freon_pressure'] ?? null);
+                    if ($val !== null && $val !== '') { $lastFreon = $val; $lastFreonAt = $rp['submitted_at'] ?? null; }
+                }
+                if ($lastAmper === null) {
+                    $valA = $rp['ampere'] ?? ($rp['ampere_terukur'] ?? null);
+                    if ($valA !== null && $valA !== '') { $lastAmper = $valA; $lastAmperAt = $rp['submitted_at'] ?? null; }
+                }
+                if ($lastFreon !== null && $lastAmper !== null) break;
+            }
+        }
+
         return view('Admin/ac_units/show', [
-            'title'      => 'Detail Alat AC',
-            'activeMenu' => 'ac.list',
-            'row'        => $row,
-            'merek'      => $merek,
-            'model'      => $model,
-            'sn'         => $sn,
-            'repairs'    => $repairs,
-            'photoUrl'   => $this->findPhotoUrl($id),
+            'title'              => 'Detail Alat AC',
+            'activeMenu'         => 'ac.list',
+            'row'                => $row,
+            'merek'              => $merek,
+            'model'              => $model,
+            'sn'                 => $sn,
+            'repairs'            => $repairs,
+            'photoUrl'           => $this->findPhotoUrl($id),
+
+            'lastServiceAt'      => $lastServiceAt,
+            'lastMaintenanceAt'  => $lastMaintenanceAt,
+            'lastFreon'          => $lastFreon,
+            'lastFreonAt'        => $lastFreonAt,
+            'lastAmper'          => $lastAmper,
+            'lastAmperAt'        => $lastAmperAt,
         ]);
     }
 
@@ -124,7 +220,7 @@ class AcUnits extends BaseController
         if (!$row) return redirect()->route('admin.ac.index')->with('err','Data tidak ditemukan');
 
         [$merek,$model] = $this->splitBrandModel($row['tipe_model'] ?? '');
-        $sn = $this->extractSn($row['catatan'] ?? null);
+        $sn = $this->hasColumn('ac_units','serial_no') ? trim((string)($row['serial_no'] ?? '')) : '';
 
         return view('Admin/ac_units/edit', [
             'title'      => 'Edit Alat AC',
@@ -137,7 +233,7 @@ class AcUnits extends BaseController
         ]);
     }
 
-    /* UPDATE (terima BTU & BMN; validasi status baru) */
+    /* UPDATE (terima SN langsung ke kolom serial_no bila ada) */
     public function update(int $id)
     {
         if ($this->request->getMethod(true) !== 'POST') {
@@ -167,8 +263,10 @@ class AcUnits extends BaseController
             'bmn_no_display' => $bmn !== '' ? $bmn : ($row['bmn_no_display'] ?? null),
             'lokasi'         => $lokasi ?: ($row['lokasi'] ?? '-'),
             'status_ac'      => $statusFinal,
-            'catatan'        => $this->upsertSn($row['catatan'] ?? null, $sn),
         ];
+        if ($this->hasColumn('ac_units','serial_no')) {
+            $data['serial_no'] = ($sn !== '') ? $sn : null;
+        }
 
         try {
             if (!$AC->save($data)) {
@@ -182,9 +280,7 @@ class AcUnits extends BaseController
         $dir = FCPATH.'uploads/ac_units/'.$id;
         $remove = (int)$this->request->getPost('remove_photo') === 1;
 
-        if ($remove) {
-            $this->deletePhotoFiles($dir);
-        }
+        if ($remove) $this->deletePhotoFiles($dir);
 
         $file = $this->request->getFile('foto');
         if ($file && $file->isValid()) {
@@ -224,9 +320,7 @@ class AcUnits extends BaseController
 
         // bersihkan file
         $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
-        if (!empty($row['kode_qr'])) {
-            @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
-        }
+        if (!empty($row['kode_qr'])) @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
 
         return redirect()->route('admin.ac.index')->with('ok','Data berhasil dihapus');
     }
@@ -272,53 +366,47 @@ class AcUnits extends BaseController
 
     public function bulkDelete()
     {
-    if ($this->request->getMethod(true) !== 'POST') {
-        return redirect()->back()->with('err','Method Not Allowed');
-    }
-
-    $ids = $this->request->getPost('ids');
-    if (!$ids || !is_array($ids)) {
-        return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
-    }
-
-    // Normalisasi: int unik & > 0
-    $ids = array_values(array_unique(array_map('intval', $ids)));
-    $ids = array_filter($ids, static fn($v) => $v > 0);
-    if (empty($ids)) {
-        return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
-    }
-
-    $db = \Config\Database::connect();
-    $AC = new AcUnitModel();
-
-    $db->transBegin();
-    try {
-        foreach ($ids as $id) {
-            $row = $AC->find($id);
-            if (!$row) continue;
-
-            // hapus anak
-            (new AcRepairModel())->where('ac_id', $id)->delete();
-            (new AcTicketModel())->where('ac_id', $id)->delete();
-
-            // hapus induk
-            $db->table('ac_units')->where('id', $id)->delete();
-
-            // hapus file
-            $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
-            if (!empty($row['kode_qr'])) {
-                @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
-            }
+        if ($this->request->getMethod(true) !== 'POST') {
+            return redirect()->back()->with('err','Method Not Allowed');
         }
-        $db->transCommit();
-    } catch (\Throwable $e) {
-        $db->transRollback();
-        return redirect()->route('admin.ac.index')->with('err','Gagal hapus: '.$e->getMessage());
-    }
 
-    return redirect()->route('admin.ac.index')->with('ok','Berhasil hapus '.count($ids).' perangkat.');
-    }
+        $ids = $this->request->getPost('ids');
+        if (!$ids || !is_array($ids)) {
+            return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
+        }
 
+        // Normalisasi: int unik & > 0
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_filter($ids, static fn($v) => $v > 0);
+        if (empty($ids)) {
+            return redirect()->route('admin.ac.index')->with('err','Tidak ada data yang dipilih.');
+        }
+
+        $db = \Config\Database::connect();
+        $AC = new AcUnitModel();
+
+        $db->transBegin();
+        try {
+            foreach ($ids as $id) {
+                $row = $AC->find($id);
+                if (!$row) continue;
+
+                (new AcRepairModel())->where('ac_id', $id)->delete();
+                (new AcTicketModel())->where('ac_id', $id)->delete();
+
+                $db->table('ac_units')->where('id', $id)->delete();
+
+                $this->rrmdir(FCPATH.'uploads/ac_units/'.$id);
+                if (!empty($row['kode_qr'])) @unlink(FCPATH.'uploads/qrcodes/'.($row['kode_qr']).'.png');
+            }
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return redirect()->route('admin.ac.index')->with('err','Gagal hapus: '.$e->getMessage());
+        }
+
+        return redirect()->route('admin.ac.index')->with('ok','Berhasil hapus '.count($ids).' perangkat.');
+    }
 
     /* ====== EXPORT EXCEL / CSV (ikut filter) ====== */
     public function export()
@@ -396,9 +484,8 @@ class AcUnits extends BaseController
                 ->setBody($bin);
         }
 
-        // Fallback CSV (pakai BOM biar Excel Windows aman UTF-8)
+        // Fallback CSV (pakai BOM)
         $fh = fopen('php://temp', 'r+');
-        // BOM
         fwrite($fh, chr(0xEF).chr(0xBB).chr(0xBF));
         fputcsv($fh, $headers);
         foreach ($data as $row) {
@@ -465,25 +552,6 @@ class AcUnits extends BaseController
         return strtoupper($m).' '.$d;
     }
 
-    private function extractSn(?string $catatan): string
-    {
-        if (!$catatan) return '';
-        if (preg_match('/\bSN\s*=\s*([^\r\n]+)/i',$catatan,$m)) return trim($m[1]);
-        return '';
-    }
-
-    private function upsertSn(?string $catatan,string $sn): ?string
-    {
-        $sn  = trim($sn);
-        $cat = $catatan ? trim($catatan) : '';
-        if ($sn==='') return $cat ?: null;
-        if ($cat==='') return "SN=".$sn;
-        if (preg_match('/\bSN\s*=\s*[^\r\n]+/i',$cat)) {
-            return preg_replace('/\bSN\s*=\s*[^\r\n]+/i','SN='.$sn,$cat);
-        }
-        return rtrim($cat)."\nSN=".$sn;
-    }
-
     private function findPhotoUrl(int $id): ?string
     {
         $dir = FCPATH.'uploads/ac_units/'.$id;
@@ -502,10 +570,13 @@ class AcUnits extends BaseController
     private function rrmdir(string $path): void
     {
         if (!is_dir($path)) return;
+
         $it    = new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS);
         $files = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
+
         foreach ($files as $f) {
-            $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+            if ($f->isDir()) @rmdir($f->getPathname());
+            else @unlink($f->getPathname());
         }
         @rmdir($path);
     }
