@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.5.0">
+<link rel="stylesheet" href="<?= base_url('assets/css/ac-units.css') ?>?v=1.6.0">
 <style>
   .emp-table .col-select{ width:42px; }
   .form-check-input.table-check{ width:1.05rem; height:1.05rem; cursor:pointer; }
@@ -209,5 +209,5 @@
     }
   };
 </script>
-<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=2.2.0"></script>
+<script src="<?= base_url('assets/js-admin/ac-units.js') ?>?v=2.4.0"></script>
 <?= $this->endSection() ?>

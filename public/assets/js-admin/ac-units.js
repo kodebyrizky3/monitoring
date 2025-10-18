@@ -1,4 +1,4 @@
-// public/assets/js-admin/ac-units.js  (v2.3.0) — Excel-like grid, sticky header, safe escape, No = nomor urut
+// public/assets/js-admin/ac-units.js  (v2.4.0) — Excel-like grid, sticky header, safe escape, No = nomor urut
 (function () {
   "use strict";
 
@@ -153,6 +153,7 @@
     if (selCount) selCount.textContent = String(n);
     if (btnBulk) btnBulk.disabled = n === 0;
   }
+
   function syncHeaderCheck() {
     if (!chkAll || !tbody) return;
     const cbs = Array.from(tbody.querySelectorAll("input.row-check"));
@@ -161,19 +162,44 @@
     chkAll.indeterminate =
       cbs.length > 0 && !all && cbs.some((cb) => cb.checked);
   }
+
+  /* ====== VISUAL HIGHLIGHT (fallback tanpa :has()) ====== */
+  function refreshSelectHighlights() {
+    // header col: pending kalau master belum dicentang
+    const th = chkAll?.closest("th");
+    if (th && chkAll) th.classList.toggle("pending", !chkAll.checked);
+
+    if (!tbody) return;
+    tbody.querySelectorAll("input.row-check").forEach((cb) => {
+      const tr = cb.closest("tr");
+      tr && tr.classList.toggle("row-selected", cb.checked);
+      const td = cb.closest("td.col-select");
+      td && td.classList.toggle("pending", !cb.checked);
+    });
+  }
+
   function bindRowChecks() {
     if (!tbody) return;
     tbody.querySelectorAll("input.row-check").forEach((cb) => {
       const id = parseInt(cb.value, 10);
       cb.checked = selected.has(id);
+
+      // set visual state awal
+      const tr0 = cb.closest("tr");
+      tr0 && tr0.classList.toggle("row-selected", cb.checked);
+      const td0 = cb.closest("td.col-select");
+      td0 && td0.classList.toggle("pending", !cb.checked);
+
       cb.addEventListener("change", () => {
         if (cb.checked) selected.add(id);
         else selected.delete(id);
         syncHeaderCheck();
         updateBulkUI();
+        refreshSelectHighlights();
       });
     });
   }
+
   chkAll?.addEventListener("change", () => {
     const cbs = tbody ? tbody.querySelectorAll("input.row-check") : [];
     cbs.forEach((cb) => {
@@ -183,7 +209,9 @@
       else selected.delete(id);
     });
     updateBulkUI();
+    refreshSelectHighlights();
   });
+
   btnBulk?.addEventListener("click", async () => {
     if (selected.size === 0) return;
     const res = await Swal.fire({
@@ -266,6 +294,7 @@
             .map((r, idx) => {
               const no = baseNo + idx + 1;
               const sn = r.serial_no || r.sn || "";
+              // NOTE: kelas visual (row-selected/pending) akan di-set setelah bindRowChecks()
               return `
           <tr>
             <td class="col-select">
@@ -315,6 +344,7 @@
       bindRowChecks();
       syncHeaderCheck();
       updateBulkUI();
+      refreshSelectHighlights(); // penting: set highlight awal
       setInfoCount(rows.length, total, state.page, state.perPage);
     } catch (err) {
       if (err.name === "AbortError") return;
