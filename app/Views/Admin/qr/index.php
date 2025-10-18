@@ -7,7 +7,6 @@
       <div class="card-body">
         <h2 class="h6 mb-3">Detail Perangkat</h2>
 
-        <!-- prevent-autogreen: cegah centang hijau pada input kosong -->
         <form id="formQR"
               class="row g-3 needs-validation prevent-autogreen"
               novalidate autocomplete="off"
@@ -61,7 +60,7 @@
             </select>
           </div>
 
-          <!-- FOTO -->
+          <!-- FOTO (single) -->
           <div class="col-12">
             <label class="form-label">Foto AC (opsional)</label>
             <div id="dzFoto" class="dropzone rounded-3 p-3 text-center">
@@ -75,9 +74,7 @@
               <div id="dzPreviewBox" class="dz-preview d-none">
                 <img id="dzPreview" class="img-fluid rounded border" alt="Foto AC">
                 <div class="d-flex flex-wrap gap-2 justify-content-center mt-2">
-                  <button class="btn btn-outline-info btn-sm" id="btnCrop" type="button">
-                    <i class="bi bi-crop"></i> Crop
-                  </button>
+                  <button class="btn btn-outline-info btn-sm" id="btnCrop" type="button"><i class="bi bi-crop"></i> Crop</button>
                   <button class="btn btn-outline-secondary btn-sm" id="btnGanti" type="button">Ganti</button>
                   <button class="btn btn-outline-danger btn-sm" id="btnHapus" type="button">Hapus</button>
                 </div>
@@ -94,12 +91,9 @@
           </div>
 
           <div class="col-12 d-grid d-sm-flex gap-2 mt-2">
-            <button id="btnGen" class="btn btn-primary" type="submit">
-              <i class="bi bi-magic"></i> Generate
-            </button>
+            <button id="btnGen" class="btn btn-primary" type="submit"><i class="bi bi-magic"></i> Generate</button>
             <button type="reset" id="btnReset" class="btn btn-outline-secondary">Reset</button>
 
-            <!-- === Tombol Bulk === -->
             <button type="button" id="btnBulkOpen" class="btn btn-outline-dark ms-sm-auto" data-bs-toggle="modal" data-bs-target="#bulkModal">
               <i class="bi bi-list-check"></i> Bulk Input
             </button>
@@ -133,9 +127,7 @@
               </div>
 
               <div class="print-grid mt-3">
-                <div class="qr-in-card">
-                  <div id="qrInCard" class="qr-box"></div>
-                </div>
+                <div class="qr-in-card"><div id="qrInCard" class="qr-box"></div></div>
                 <div class="label-info">
                   <div class="kv"><span class="label">Merek:</span> <span id="pvMerek">—</span></div>
                   <div class="kv"><span class="label">Model/SN:</span> <span id="pvModelSn">—</span></div>
@@ -152,26 +144,13 @@
           </div>
 
           <div class="col-md-6 text-center">
-            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty">
-              <div id="qrcode"></div>
-            </div>
-            <div class="mt-2">
-              <div class="small text-muted">URL Publik:</div>
-              <div class="text-break" id="pvUrl">—</div>
-            </div>
+            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty"><div id="qrcode"></div></div>
+            <div class="mt-2"><div class="small text-muted">URL Publik:</div><div class="text-break" id="pvUrl">—</div></div>
             <div class="d-grid d-sm-flex gap-2 mt-3">
-              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-box-arrow-up-right"></i> Buka URL
-              </a>
-              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button">
-                <i class="bi bi-download"></i> Download PNG
-              </button>
-              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button">
-                <i class="bi bi-printer"></i> Cetak Label
-              </button>
-              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button">
-                <i class="bi bi-filetype-json"></i> Simpan JSON
-              </button>
+              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-arrow-up-right"></i> Buka URL</a>
+              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button"><i class="bi bi-download"></i> Download PNG</button>
+              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-printer"></i> Cetak Label</button>
+              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button"><i class="bi bi-filetype-json"></i> Simpan JSON</button>
             </div>
           </div>
         </div>
@@ -181,7 +160,7 @@
   </div>
 </div>
 
-<!-- ========== Modal Crop Foto ========== -->
+<!-- Modal Crop Foto (tetap) -->
 <div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -194,7 +173,7 @@
           <img id="cropImage" alt="Crop source">
         </div>
         <div class="d-flex justify-content-between align-items-center pt-2">
-          <div class="small text-muted">Rasio: 16:9 (sesuai hero & preview)</div>
+          <div class="small text-muted">Rasio: 16:9</div>
           <div class="btn-group btn-group-sm">
             <button id="btnCropRotate" class="btn btn-outline-secondary" type="button" title="Putar 90°"><i class="bi bi-arrow-clockwise"></i> Rotate</button>
             <button id="btnCropReset"  class="btn btn-outline-secondary" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
@@ -203,15 +182,13 @@
       </div>
       <div class="modal-footer">
         <button id="btnCropCancel" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button id="btnCropSave"   type="button" class="btn btn-primary">
-          <i class="bi bi-check2"></i> Save
-        </button>
+        <button id="btnCropSave"   type="button" class="btn btn-primary"><i class="bi bi-check2"></i> Save</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ========== Modal Bulk Input (CSV only) ========== -->
+<!-- Modal Bulk -->
 <div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
@@ -220,15 +197,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
       </div>
       <div class="modal-body">
-        <form id="bulkForm" autocomplete="off" data-bulk-url="<?= site_url('admin/qr/bulk-save') ?>">
+        <form id="bulkForm" autocomplete="off"
+              data-bulk-url="<?= site_url('admin/qr/bulk-save') ?>"
+              data-diag-url="<?= site_url('admin/qr/diag') ?>">
           <?= csrf_field() ?>
 
           <div class="alert alert-info small">
-            <div class="fw-semibold mb-1">Format kolom (CSV dari Excel/Google Sheets):</div>
-            <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status</code>
-            <div class="mt-2">Contoh:
-              <pre class="mb-0">AC Ruang 1, Daikin, ATKC25U, SN123, Lantai 2 - Ruang 1, 12000, 31415926, NORMAL</pre>
-            </div>
+            <div class="fw-semibold mb-1">Format CSV (12 kolom urut):</div>
+            <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
           </div>
 
           <div class="row g-3">
@@ -239,36 +215,41 @@
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
               </div>
               <div class="form-text">Maksimal 1000 baris per unggahan.</div>
+
+              <div class="alert alert-secondary mt-3 small">
+                <div class="fw-semibold mb-1">Aturan tanggal:</div>
+                <ul class="mb-1">
+                  <li>CSV pakai <code>DD-MM-YYYY</code> (contoh: <code>20-09-2025</code>).</li>
+                  <li>Jika salah format → disimpan kosong (tidak error).</li>
+                </ul>
+              </div>
+
+              <div class="mt-3">
+                <label class="form-label">Unggah ZIP Foto (opsional)</label>
+                <input type="file" name="images_zip" id="imagesZip" accept=".zip" class="form-control">
+                <div class="form-text">Cocokkan nama file ke <b>Serial</b> → <b>BMN</b> → <b>Nama</b>. JPG/PNG/WebP, ≤ 5 MB per file.</div>
+              </div>
             </div>
+
             <div class="col-lg-6">
               <label class="form-label">Preview</label>
               <div class="table-responsive border rounded" style="max-height:380px; overflow:auto;">
                 <table class="table table-sm table-hover align-middle mb-0" id="bulkPreviewTable">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Nama</th>
-                      <th>Merek</th>
-                      <th>Model</th>
-                      <th>Serial</th>
-                      <th>Lokasi</th>
-                      <th>BTU</th>
-                      <th>BMN</th>
-                      <th>Status</th>
+                      <th>#</th><th>Nama</th><th>Merek</th><th>Model</th><th>Serial</th><th>Lokasi</th>
+                      <th>BTU</th><th>BMN</th><th>Status</th><th>Freon</th><th>Amper</th><th>Ter. Service</th><th>Ter. Perawatan</th>
                     </tr>
                   </thead>
                   <tbody id="bulkPreviewTbody">
-                    <tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>
+                    <tr><td colspan="13" class="text-center text-muted py-4">Belum ada data.</td></tr>
                   </tbody>
                 </table>
               </div>
-              <div class="small mt-2">
-                <span id="bulkCount" class="text-muted">0 baris siap disimpan</span>
-              </div>
+              <div class="small mt-2"><span id="bulkCount" class="text-muted">0 baris siap disimpan</span></div>
             </div>
           </div>
         </form>
-
       </div>
       <div class="modal-footer">
         <div class="me-auto small text-muted" id="bulkMsg"></div>
@@ -285,12 +266,6 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet">
 <link href="<?= base_url('assets/css/admin-qr.css') ?>" rel="stylesheet">
-<style>
-/* tambahan kecil untuk tabel preview bulk */
-#bulkPreviewTable td, #bulkPreviewTable th { white-space: nowrap; }
-#bulkPreviewTable td:nth-child(2) { min-width: 180px; }
-#bulkPreviewTable td:nth-child(6) { min-width: 200px; }
-</style>
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>

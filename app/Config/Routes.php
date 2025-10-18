@@ -66,9 +66,8 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get('notifications/latest', 'Admin\Notifications::latest', ['as' => 'admin.notif.latest']);
         $routes->get('notifications/stream', 'Admin\Notifications::stream', ['as' => 'admin.notif.stream']);
 
-        // ===== Alias lama: arahkan ke Kendala (bukan Data_kendala) =====
+        // Alias lama → arahkan ke halaman kendala baru
         $routes->get('data_kendala', 'Admin\Kendala::index', ['as' => 'admin.data_kendala']);
-        // $routes->get('data_kendala', static fn() => redirect()->route('admin.kendala.index'));
 
         // =========================
         // ADMIN: Data Alat → AC
@@ -85,31 +84,34 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
                 $routes->post('(:num)/save',   'Admin\AcUnits::update/$1', ['as' => 'admin.ac.update']);
                 $routes->post('(:num)/delete', 'Admin\AcUnits::delete/$1', ['as' => 'admin.ac.delete']);
 
-                // Bulk delete (FIX path: cukup "bulk-delete" karena sudah di dalam grup)
+                // Bulk delete (perbaikan path: relatif terhadap grup)
                 $routes->post('bulk-delete', 'Admin\AcUnits::bulkDelete', ['as' => 'admin.ac.bulk_delete']);
 
-                // Tambah via QR Generator
+                // Tambah via QR Generator (single)
                 $routes->get ('tambah',      'Admin\Qr::index', ['as' => 'admin.ac.add']);
                 $routes->post('tambah/save', 'Admin\Qr::save',  ['as' => 'admin.ac.add.save']);
 
                 // Download ulang QR (PNG)
                 $routes->get('(:num)/qr/download', 'Admin\AcUnits::downloadQr/$1', ['as' => 'admin.ac.qr.download']);
 
-                // EXPORT
+                // Export
                 $routes->get('export', 'Admin\AcUnits::export', ['as' => 'admin.ac.export']);
+                $routes->get('admin/qr/opcache-reset', 'Admin\Qr::opcacheReset');
+
+
             });
         });
 
-        // Render PNG QR langsung untuk <img src="...">
+        // Render PNG QR langsung (opsional)
         $routes->get('admin/qr/png/(:segment)', 'Admin\QrRender::show/$1', ['as' => 'admin.qr.show']);
 
-        // QR (lama/opsional) + BULK SAVE BARU
+        // QR Generator (UI) + API single + API bulk
         $routes->get ('admin/qr',           'Admin\Qr::index',     ['as' => 'admin.qr']);
         $routes->post('admin/qr/save',      'Admin\Qr::save',      ['as' => 'admin.qr.save']);
         $routes->post('admin/qr/bulk-save', 'Admin\Qr::bulkSave',  ['as' => 'admin.qr.bulk_save']);
-        if (ENVIRONMENT !== 'production') {
-            $routes->get('admin/qr/diag', 'Admin\Qr::diag', ['as' => 'admin.qr.diag']);
-        }
+
+        // 🔐 Diaktifkan di production juga → dipakai AJAX refresh CSRF
+        $routes->get('admin/qr/diag', 'Admin\Qr::diag', ['as' => 'admin.qr.diag']);
 
         // Pegawai (CRUD)
         $routes->get   ('pegawai',        'Admin\Employees::index',  ['as' => 'admin.emp.index']);
@@ -126,7 +128,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->put   ('kendaraan/(:num)',        'Admin\KendaraanUnit::update/$1', ['as' => 'kendaraan.update']);
         $routes->post  ('kendaraan/(:num)',        'Admin\KendaraanUnit::update/$1'); // kompat lama (POST)
         $routes->delete('kendaraan/(:num)',        'Admin\KendaraanUnit::delete/$1', ['as' => 'kendaraan.destroy']);
-        $routes->post  ('kendaraan/delete/(:num)', 'Admin\KendaraanUnit::delete/$1', ['as' => 'kendaraan.delete']); // kompat lama
+        $routes->post  ('kendaraan/delete/(:num)', 'Admin\KendaraanUnit::delete/$1', ['as' => 'kendaraan.delete']);
         $routes->get   ('kendaraan/search',        'Admin\KendaraanUnit::search',    ['as' => 'kendaraan.search']);
 
         // =========================
@@ -138,11 +140,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
             $routes->get('search', 'Kendala::search', ['as' => 'admin.kendala.search']);
             $routes->get('export', 'Kendala::export', ['as' => 'admin.kendala.export']);
 
-            // DETAIL (GET)
+            // DETAIL
             $routes->get('ticket/(:num)',  'Kendala::detailTicket/$1',  ['as' => 'admin.kendala.ticket.detail']);
             $routes->get('service/(:num)', 'Kendala::detailService/$1', ['as' => 'admin.kendala.service.detail']);
 
-            // ACTIONS (POST)
+            // ACTIONS
             $routes->post('ticket/(:num)/approve',  'Kendala::approveTicket/$1',  ['as' => 'admin.kendala.ticket.approve']);
             $routes->post('ticket/(:num)/reject',   'Kendala::rejectTicket/$1',   ['as' => 'admin.kendala.ticket.reject']);
             $routes->post('service/(:num)/approve', 'Kendala::approveService/$1', ['as' => 'admin.kendala.service.approve']);
@@ -150,13 +152,13 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         });
 
         // =========================
-        // ALIAS REST untuk AC Units (fix 404 DELETE /admin/ac-units/{id})
+        // REST alias untuk AC Units (fix method PUT/DELETE dari client)
         // =========================
         $routes->get   ('admin/ac-units',        'Admin\AcUnits::index');               // list
         $routes->get   ('admin/ac-units/(:num)', 'Admin\AcUnits::show/$1');             // detail
         $routes->put   ('admin/ac-units/(:num)', 'Admin\AcUnits::update/$1');           // update (PUT)
         $routes->delete('admin/ac-units/(:num)', 'Admin\AcUnits::delete/$1', ['as' => 'admin.acunits.delete']); // delete (DELETE)
-        // Jika ada method store() di controller, aktifkan ini:
+        // Jika ada method store() di controller, aktifkan:
         // $routes->post('admin/ac-units', 'Admin\AcUnits::store'); // create
     });
 

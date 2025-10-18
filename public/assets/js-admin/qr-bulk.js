@@ -2,39 +2,50 @@
   "use strict";
 
   const $ = (s, p = document) => p.querySelector(s);
-  const $$ = (s, p = document) => Array.from(p.querySelectorAll(s));
 
-  // CSV parser sederhana (dukung koma & quoted; juga deteksi TAB)
+  // ===== DEBUG =====
+  const DEBUG_BULK = true; // set ke false kalau tidak perlu
+  if (DEBUG_BULK) window.__bulkDebug = { parsed: [], payload: [] };
+
+  // ====== Parser CSV/TSV/semicolon dengan dukungan kutip ganda ======
   function parseDelimited(text) {
     if (!text) return [];
     const lines = text
       .replace(/\r\n/g, "\n")
       .replace(/\r/g, "\n")
       .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+      .filter((l) => l.trim().length > 0);
+    if (!lines.length) return [];
 
-    if (lines.length === 0) return [];
-
-    // deteksi delimiter: tab lebih prioritas jika ada
-    const useTab = lines.some((l) => l.includes("\t"));
-    const delim = useTab ? "\t" : ",";
+    const sample = lines[0];
+    const candidates = [",", ";", "\t"];
+    const best = candidates
+      .map((d) => ({
+        d,
+        c: (sample.match(new RegExp("\\" + d, "g")) || []).length,
+      }))
+      .sort((a, b) => b.c - a.c)[0].d;
+    const delim = best;
 
     const splitLine = (line) => {
-      if (delim === "\t") {
-        return line.split("\t").map((s) => s.trim());
+      const out = [];
+      let cur = "",
+        inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQ && line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else inQ = !inQ;
+        } else if (ch === delim && !inQ) {
+          out.push(cur.trim());
+          cur = "";
+        } else cur += ch;
       }
-      // CSV split by comma not inside double quotes
-      const parts = line.match(/("([^"]|"")*"|[^,])+/g) || [];
-      return parts.map((p) => {
-        let s = p.trim();
-        if (s.startsWith('"') && s.endsWith('"')) {
-          s = s.slice(1, -1).replace(/""/g, '"');
-        }
-        return s;
-      });
+      out.push(cur.trim());
+      return out;
     };
-
     return lines.map(splitLine);
   }
 
@@ -47,9 +58,31 @@
     return ["NORMAL", "RUSAK_RINGAN", "RUSAK_BERAT"].includes(s) ? s : "NORMAL";
   }
 
+  // ===== CSRF refresher =====
+  async function refreshCsrf(form) {
+    const url = form?.dataset?.diagUrl;
+    if (!url) return;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json",
+        },
+        credentials: "same-origin",
+      });
+      const js = await res.json();
+      if (js && js.csrf && js.csrf_token) {
+        document
+          .querySelectorAll(`input[name="${js.csrf_token}"]`)
+          .forEach((inp) => (inp.value = js.csrf));
+      }
+    } catch {}
+  }
+
   // ===== State =====
-  let parsedRows = []; // array of arrays (fixed order)
-  let fileText = ""; // raw text from uploaded CSV
+  let parsedRows = [];
+  let fileText = "";
 
   function renderPreview() {
     const tbody = $("#bulkPreviewTbody");
@@ -57,7 +90,7 @@
     tbody.innerHTML = "";
 
     if (!parsedRows.length) {
-      tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
       countEl.textContent = "0 baris siap disimpan";
       $("#btnBulkSave")?.setAttribute("disabled", "disabled");
       return;
@@ -69,14 +102,18 @@
       const safe = (x) => (x && x.length ? x : "—");
       const cells = [
         idx + 1,
-        safe(r[0]),
-        safe(r[1]),
-        safe(r[2]),
-        safe(r[3]),
-        safe(r[4]),
-        safe(r[5]),
-        safe(r[6]),
-        normalizeStatus(r[7]),
+        safe(r[0]), // Nama
+        safe(r[1]), // Merek
+        safe(r[2]), // Model
+        safe(r[3]), // Serial
+        safe(r[4]), // Lokasi
+        safe(r[5]), // BTU
+        safe(r[6]), // BMN
+        normalizeStatus(r[7]), // Status
+        safe(r[8]), // Freon
+        safe(r[9]), // Amper
+        safe(r[10]), // Ter. Service (DD-MM-YYYY)
+        safe(r[11]), // Ter. Perawatan (DD-MM-YYYY)
       ];
       cells.forEach((c) => {
         const td = document.createElement("td");
@@ -104,28 +141,30 @@
     }
 
     const hasHeader = $("#hasHeader")?.checked;
-    if (hasHeader && rows.length) {
-      rows = rows.slice(1);
-    }
+    if (hasHeader && rows.length) rows = rows.slice(1);
 
-    // map ke 8 kolom, isi kosong jika kurang
     parsedRows = rows.map((r) => {
-      const arr = new Array(8).fill("");
-      for (let i = 0; i < Math.min(r.length, 8); i++) {
+      const arr = new Array(12).fill("");
+      for (let i = 0; i < Math.min(r.length, 12); i++)
         arr[i] = (r[i] || "").toString().trim();
-      }
       return arr;
     });
 
-    // filter nama kosong
-    parsedRows = parsedRows.filter((r) => (r[0] || "").trim() !== "");
+    // buang baris yang bener-bener kosong semua kolom
+    parsedRows = parsedRows.filter((r) =>
+      r.some((v) => (v || "").trim() !== "")
+    );
 
-    // limit 1000
     if (parsedRows.length > 1000) {
       parsedRows = parsedRows.slice(0, 1000);
       $("#bulkMsg").textContent = "Dipangkas ke 1000 baris maksimum.";
     } else {
       $("#bulkMsg").textContent = "";
+    }
+
+    if (DEBUG_BULK) {
+      window.__bulkDebug.parsed = parsedRows;
+      console.table(parsedRows);
     }
 
     renderPreview();
@@ -135,9 +174,8 @@
     if (!file) return;
     try {
       fileText = await file.text();
-      doParse(); // auto-parse setelah pilih file
-    } catch (e) {
-      console.error(e);
+      doParse();
+    } catch {
       fileText = "";
       parsedRows = [];
       renderPreview();
@@ -155,6 +193,9 @@
     const saveUrl = form?.dataset?.bulkUrl;
     if (!saveUrl) return;
 
+    // refresh CSRF dulu
+    await refreshCsrf(form);
+
     const rowsObj = parsedRows.map((r) => ({
       nama: r[0],
       merek: r[1] || null,
@@ -164,7 +205,19 @@
       kapasitas_btu: (r[5] || "").replace(/\D+/g, "") || "12000",
       bmn_no_display: (r[6] || "").replace(/\D+/g, "") || null,
       status: normalizeStatus(r[7]),
+      tekanan_freon_terakhir: r[8] || null,
+      amper_terakhir: r[9] || null,
+      // tanggal DD-MM-YYYY -> backend konversi ke YYYY-MM-DD
+      terakhir_service: r[10] || null,
+      terakhir_perawatan: r[11] || null,
     }));
+
+    if (DEBUG_BULK) {
+      window.__bulkDebug.payload = rowsObj;
+      console.log("rowsObj →", rowsObj);
+      // akses cepat dari console:
+      // __bulkDebug.parsed / __bulkDebug.payload
+    }
 
     const btn = $("#btnBulkSave");
     const oldHtml = btn.innerHTML;
@@ -190,14 +243,11 @@
         js = await res.json();
       } catch {}
 
-      // refresh CSRF jika ada
+      // refresh CSRF untuk next actions
       if (js && js.csrf && js.csrf_token) {
-        const inp = form.querySelector(`input[name="${js.csrf_token}"]`);
-        if (inp) inp.value = js.csrf;
-        const inp2 = document.querySelector(
-          `#formQR input[name="${js.csrf_token}"]`
-        );
-        if (inp2) inp2.value = js.csrf;
+        document
+          .querySelectorAll(`input[name="${js.csrf_token}"]`)
+          .forEach((inp) => (inp.value = js.csrf));
       }
 
       if (!res.ok || !js || js.ok !== true) {
@@ -210,22 +260,17 @@
       const fail = js.failed || 0;
       const total = js.total || rowsObj.length;
 
-      // Tampilkan ringkasan, lalu TUTUP modal otomatis
       await Swal.fire({
         icon: fail ? "warning" : "success",
         title: "Selesai",
-        html: `Total: <b>${total}</b> &middot; Berhasil: <b>${ok}</b> &middot; Gagal: <b>${fail}</b>`,
+        html: `Total: <b>${total}</b><br>Berhasil: <b>${ok}</b> · Gagal: <b>${fail}</b>`,
       });
 
-      // Tutup modal setelah alert
+      // tutup modal & reset
       const modalEl = document.getElementById("bulkModal");
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.hide();
-
-      // Reset state setelah ditutup
+      bootstrap.Modal.getOrCreateInstance(modalEl).hide();
       resetBulkUI();
     } catch (err) {
-      console.error(err);
       Swal.fire({
         icon: "error",
         title: "Gagal simpan",
@@ -242,19 +287,21 @@
     fileText = "";
     const file = $("#bulkFile");
     if (file) file.value = "";
+    const zip = $("#imagesZip");
+    if (zip) zip.value = "";
     $(
       "#bulkPreviewTbody"
-    ).innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
+    ).innerHTML = `<tr><td colspan="13" class="text-center text-muted py-4">Belum ada data.</td></tr>`;
     $("#bulkCount").textContent = "0 baris siap disimpan";
     $("#bulkMsg").textContent = "";
     $("#btnBulkSave")?.setAttribute("disabled", "disabled");
   }
 
-  // Wire UI
   document.addEventListener("DOMContentLoaded", () => {
+    // Download template: HANYA HEADER
     $("#btnTemplate")?.addEventListener("click", () => {
       const header =
-        "Nama,Merek,Model,Serial No,Lokasi,Kapasitas BTU,Nomor BMN,Status\n";
+        "Nama,Merek,Model,Serial No,Lokasi,Kapasitas BTU,Nomor BMN,Status,Tekanan Freon Terakhir,Amper Terakhir,Terakhir Service,Terakhir Perawatan\n";
       const blob = new Blob([header], { type: "text/csv" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -267,15 +314,9 @@
       const f = e.target.files?.[0];
       await handleFile(f);
     });
-
-    $("#hasHeader")?.addEventListener("change", () => {
-      // re-parse file text saat toggle header
-      doParse();
-    });
-
+    $("#hasHeader")?.addEventListener("change", doParse);
     $("#btnBulkSave")?.addEventListener("click", saveBulk);
 
-    // Saat modal ditutup manual, reset tampilan
     const bulkModal = document.getElementById("bulkModal");
     bulkModal?.addEventListener("hidden.bs.modal", resetBulkUI);
   });
