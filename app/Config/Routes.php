@@ -165,11 +165,30 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     /* ---------- USER (mobile-first) ---------- */
     $routes->group('u', static function ($routes) {
 
-        // Landing user → /u/kendaraan
-        $routes->get('', static fn () => redirect()->to(site_url('u/kendaraan')));
+        // Pegawai (CRUD)
+        $routes->group('admin', static function ($routes) {
+            $routes->get   ('pegawai/export',         'Admin\Employees::export', ['as' => 'admin.emp.export']);
+            $routes->get   ('pegawai',                'Admin\Employees::index');
+            $routes->get   ('pegawai/search',         'Admin\Employees::search');
+            $routes->get   ('pegawai/(:num)',         'Admin\Employees::show/$1');
+            $routes->post  ('pegawai',                'Admin\Employees::store');
+            $routes->post  ('pegawai/(:num)',         'Admin\Employees::update/$1');
+            $routes->put   ('pegawai/(:num)',         'Admin\Employees::update/$1');
+            $routes->delete('pegawai/(:num)',         'Admin\Employees::delete/$1');
+            $routes->post  ('pegawai/(:num)/restore', 'Admin\Employees::restore/$1');
+        });
 
-        // Page (UI)
-        $routes->get('kendaraan', 'User\Kendaraan\Page::index');
+        // Departemen (Bidang)
+        $routes->group('admin', static function($r){
+            
+            $r->get ('bidang',              'Admin\Bidangs::index');
+            $r->get ('bidang/search',       'Admin\Bidangs::search');
+            $r->get ('bidang/(:num)',       'Admin\Bidangs::show/$1');      // JSON untuk Edit
+            $r->post('bidang',              'Admin\Bidangs::store');        // Tambah
+            $r->post('bidang/(:num)/save',  'Admin\Bidangs::update/$1');    // Update via POST (tanpa spoof)
+            $r->post('bidang/(:num)/delete','Admin\Bidangs::delete/$1');    // Delete via POST
+            
+        });
 
         // Perjalanan Dinas
         $routes->get ('kendaraan/perjalanan/search',        'User\Kendaraan\Trips::search');
@@ -185,10 +204,23 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get ('kendaraan/perbaikan/search', 'User\Kendaraan\Services::search');
         $routes->post('kendaraan/perbaikan',        'User\Kendaraan\Services::store');
 
-        // OPTIONS (dropdown)
-        $routes->get('options/kendaraan', 'User\Kendaraan\Options::kendaraan');
-        $routes->get('options/pegawai',   'User\Kendaraan\Options::pegawai');
+    /* ---------- USER (mobile-first) ---------- */
+    $routes->group('user', ['filter' => 'role:user'], static function ($routes) {
+        $routes->get('/',           'User\Home::index', ['as' => 'user.home']);
+        $routes->get('home/stats',  'User\Home::stats', ['as' => 'user.home.stats']);
+
+        // Placeholder rute user-side (nanti diisi)
+        $routes->get ('kendaraan/riwayat', 'User\Kendaraan::riwayat'); // TODO: buat controller-nya
+        $routes->get ('kendaraan/ajukan',  'User\Kendaraan::form');    // TODO
+        $routes->post('kendaraan/ajukan',  'User\Kendaraan::store');   // TODO
+        $routes->get ('kendaraan/bbm',     'User\Kendaraan::bbmForm'); // TODO
+        $routes->post('kendaraan/bbm',     'User\Kendaraan::bbmStore');// TODO
+
+        $routes->get ('ac/lapor',   'User\Ac::form');     // TODO
+        $routes->post('ac/lapor',   'User\Ac::store');    // TODO
+        $routes->get ('ac/status',  'User\Ac::status');   // TODO
     });
+
 
 });
 

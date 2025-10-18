@@ -20,7 +20,7 @@ class Auth extends BaseController
     {
         $rules = [
             'username' => 'required|min_length[3]|max_length[50]',
-            'password' => 'required|min_length[5]|max_length[255]',
+            'password' => 'required|min_length[3]|max_length[255]',
         ];
         if (! $this->validate($rules)) {
             return redirect()->back()->with('error', 'Masukkan username & password yang valid.')->withInput();
@@ -72,8 +72,13 @@ class Auth extends BaseController
           'timerProgressBar' => true,
         ]);
 
-        return redirect()->to(site_url('dashboard'));
-    }
+        // Redirect default berbasis role
+        $target = (isset($user['role']) && $user['role'] === 'user')
+        ? site_url('user')
+        : site_url('dashboard');
+
+        return redirect()->to($target);
+            }
 
     public function logout()
     {

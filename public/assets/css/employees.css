@@ -7,3 +7,28 @@
 .card-stat.bg-primary, .card-stat.bg-success{ color:#fff; }
 .emp-table th,.emp-table td{ white-space:nowrap; }
 #empModal .invalid-feedback{ display:block; }
+
+/* Pastikan modal-body selalu bisa scroll di viewport kecil */
+#empModal .modal-body {
+    max-height: calc(100vh - 10rem); /* ruang untuk header+footer */
+    overflow: auto;
+  }
+  
+  /* Modal dialog tidak terlalu mepet tepi layar */
+  #empModal .modal-dialog {
+    margin: 1rem auto;
+  }
+  
+  /* Kalau ada theme yang men-set height aneh, ini merapikan */
+  #empModal .modal-content {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Agar tabel/bagian lain tidak membuat modal melebar */
+  #empModal .form-control,
+  #empModal .form-select,
+  #empModal .input-group {
+    min-width: 0;
+  }
+  
