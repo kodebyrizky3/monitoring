@@ -23,7 +23,6 @@ class Qr extends BaseController
         );
     }
 
-    // opsional - hanya untuk dev bila perlu
     public function opcacheReset()
     {
         if (function_exists('opcache_reset')) @opcache_reset();
@@ -54,8 +53,7 @@ class Qr extends BaseController
             'lokasi'          => 'permit_empty|max_length[120]',
             'base'            => 'permit_empty|valid_url_strict',
             'kapasitas_btu'   => 'permit_empty|regex_match[/^\d{1,7}$/]',
-            // izinkan angka + . - spasi
-            'bmn_no_display'  => 'permit_empty|regex_match[/^[0-9.\-\s]{1,30}$/]',
+            'bmn_no_display'  => 'permit_empty|regex_match[/^[0-9.\-\s]{1,64}$/]',
             'status'          => 'permit_empty|in_list[NORMAL,RUSAK_RINGAN,RUSAK_BERAT]',
         ];
         if (!$this->validate($rules)) {
@@ -78,9 +76,12 @@ class Qr extends BaseController
         $kapBTU = (int)preg_replace('/\D+/', '', (string)($r->getPost('kapasitas_btu') ?? '12000'));
         if ($kapBTU <= 0) $kapBTU = 12000;
 
-        // display yang aman
-        $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', (string)($r->getPost('bmn_no_display') ?? '')));
-        $bmnDigits = preg_replace('/\D+/', '', $bmnDisp);
+        $rawBmn = (string)($r->getPost('bmn_no_display') ?? '');
+        if ($this->isSci($rawBmn)) {
+            $plain = $this->sciToPlainPhp($rawBmn);
+            if ($plain !== null) $rawBmn = $plain;
+        }
+        $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', $rawBmn));
 
         $AC    = new AcUnitModel();
         $table = $AC->table;
@@ -190,10 +191,8 @@ class Qr extends BaseController
 
     /**
      * BULK: rows(JSON) + images_zip (opsional)
-     * CSV 12 kolom urut:
-     * Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status,
-     * Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service (DD-MM-YYYY), Terakhir Perawatan (DD-MM-YYYY)
-     * Foto ZIP: BMN-only (13 digit), separator di nama file bebas.
+     * – match foto 13 digit BMN + fallback 12 digit (untuk kasus nol depan hilang)
+     * – alasan kegagalan foto disertakan pada response results[x].foto_reason
      */
     public function bulkSave()
     {
@@ -223,11 +222,10 @@ class Qr extends BaseController
                                   ->setStatusCode(422);
         }
 
-        // Normalisasi -> array index 0..11
+        // Normalisasi -> array assoc
         $norm = [];
-        $skippedNonArray = 0;
         foreach ($rows as $r) {
-            if (!is_array($r)) { $skippedNonArray++; continue; }
+            if (!is_array($r)) continue;
 
             if (array_values($r) === $r) {
                 $norm[] = [
@@ -244,35 +242,29 @@ class Qr extends BaseController
                     'terakhir_service'        => (string)($r[10] ?? ''),
                     'terakhir_perawatan'      => (string)($r[11] ?? ''),
                 ];
-                continue;
+            } else {
+                $norm[] = [
+                    'nama'   => trim((string)($r['nama'] ?? '')),
+                    'merek'  => trim((string)($r['merek'] ?? '')),
+                    'model'  => trim((string)($r['model'] ?? '')),
+                    'serial_no' => trim((string)$this->firstNotEmpty($r, ['serial_no','serial','sn']) ?? ''),
+                    'lokasi'    => trim((string)$this->firstNotEmpty($r, ['lokasi','location']) ?? ''),
+                    'kapasitas_btu'  => (string)($this->firstNotEmpty($r, ['kapasitas_btu','btu']) ?? ''),
+                    'bmn_no_display' => (string)($this->firstNotEmpty($r, ['bmn_no_display','no_bmn','bmn']) ?? ''),
+                    'status'         => (string)($this->firstNotEmpty($r, ['status','status_ac']) ?? 'NORMAL'),
+                    'tekanan_freon_terakhir' => (string)($this->firstNotEmpty($r, ['tekanan_freon_terakhir','freon']) ?? ''),
+                    'amper_terakhir'         => (string)($this->firstNotEmpty($r, ['amper_terakhir','amper']) ?? ''),
+                    'terakhir_service'       => (string)($this->firstNotEmpty($r, ['terakhir_service','tgl_service']) ?? ''),
+                    'terakhir_perawatan'     => (string)($this->firstNotEmpty($r, ['terakhir_perawatan','tgl_perawatan']) ?? ''),
+                ];
             }
-
-            // assoc: support alias ringan
-            $norm[] = [
-                'nama'   => trim((string)($r['nama'] ?? '')),
-                'merek'  => trim((string)($r['merek'] ?? '')),
-                'model'  => trim((string)($r['model'] ?? '')),
-                'serial_no' => trim((string)($this->firstNotEmpty($r, ['serial_no','serial','sn']) ?? '')),
-                'lokasi'    => trim((string)($this->firstNotEmpty($r, ['lokasi','location']) ?? '')),
-                'kapasitas_btu'  => (string)($this->firstNotEmpty($r, ['kapasitas_btu','btu']) ?? ''),
-                'bmn_no_display' => (string)($this->firstNotEmpty($r, ['bmn_no_display','no_bmn','bmn']) ?? ''),
-                'status'         => (string)($this->firstNotEmpty($r, ['status','status_ac']) ?? 'NORMAL'),
-                'tekanan_freon_terakhir' => (string)($this->firstNotEmpty($r, ['tekanan_freon_terakhir','freon']) ?? ''),
-                'amper_terakhir'         => (string)($this->firstNotEmpty($r, ['amper_terakhir','amper']) ?? ''),
-                'terakhir_service'       => (string)($this->firstNotEmpty($r, ['terakhir_service','tgl_service']) ?? ''),
-                'terakhir_perawatan'     => (string)($this->firstNotEmpty($r, ['terakhir_perawatan','tgl_perawatan']) ?? ''),
-            ];
         }
 
-        $maxRows = 1000;
         if (!count($norm)) {
-            return $this->response->setJSON($this->withCsrf([
-                'error'   => 'Tidak ada baris data valid',
-                'skipped' => $skippedNonArray,
-            ]))->setStatusCode(422);
+            return $this->response->setJSON($this->withCsrf(['error' => 'Tidak ada baris data valid']))->setStatusCode(422);
         }
-        if (count($norm) > $maxRows) {
-            return $this->response->setJSON($this->withCsrf(['error' => "Maksimal {$maxRows} baris per unggahan"]))
+        if (count($norm) > 1000) {
+            return $this->response->setJSON($this->withCsrf(['error' => "Maksimal 1000 baris per unggahan"]))
                                   ->setStatusCode(413);
         }
 
@@ -291,9 +283,10 @@ class Qr extends BaseController
             ? $this->parseEnumAllowed($cols['status_ac']['Type'] ?? null)
             : ['NORMAL','RUSAK_RINGAN','RUSAK_BERAT'];
 
-        // ZIP foto → BMN-only index
+        // ========== INDEX FOTO dari ZIP (13 & 12 digit) ==========
         $zipFile = $this->request->getFile('images_zip');
-        $imgIndex = [];
+        $imgBy13 = [];
+        $imgBy12 = [];
         $zipDuplicates = [];
         $tmpDir = null;
 
@@ -328,11 +321,11 @@ class Qr extends BaseController
                 $base = pathinfo($f->getFilename(), PATHINFO_FILENAME);
                 $key13 = $this->extractBmnKey($base); // 13 digit only
                 if ($key13) {
-                    if (!isset($imgIndex[$key13])) {
-                        $imgIndex[$key13] = $f->getPathname();
-                    } else {
-                        $zipDuplicates[] = $f->getPathname(); // duplikat, abaikan
-                    }
+                    if (!isset($imgBy13[$key13])) $imgBy13[$key13] = $f->getPathname();
+                    else $zipDuplicates[] = $f->getPathname();
+
+                    $k12 = substr($key13, -12);
+                    if ($k12 && !isset($imgBy12[$k12])) $imgBy12[$k12] = $f->getPathname();
                 }
             }
         }
@@ -341,6 +334,9 @@ class Qr extends BaseController
         $okCount = 0;
 
         foreach ($norm as $i => $row) {
+            // skip header yang kebablasan
+            if ($this->looksLikeHeaderRow($row)) continue;
+
             $rowNum = $i + 1;
 
             try {
@@ -352,7 +348,13 @@ class Qr extends BaseController
                 $kapBTU = (int)preg_replace('/\D+/', '', (string)($row['kapasitas_btu'] ?? '12000'));
                 if ($kapBTU <= 0) $kapBTU = 12000;
 
-                $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', (string)($row['bmn_no_display'] ?? '')));
+                // BMN digits (perbaikan notasi ilmiah)
+                $bmnRaw = (string)($row['bmn_no_display'] ?? '');
+                if ($this->isSci($bmnRaw)) {
+                    $plain = $this->sciToPlainPhp($bmnRaw);
+                    if ($plain !== null) $bmnRaw = $plain;
+                }
+                $bmnDisp   = trim(preg_replace('/[^0-9.\-\s]+/u', '', $bmnRaw));
                 $bmnDigits = preg_replace('/\D+/', '', $bmnDisp);
 
                 $freon = $this->toDecimal($row['tekanan_freon_terakhir'] ?? null);
@@ -385,9 +387,7 @@ class Qr extends BaseController
                 $merek = (string)$row['merek'];
                 $model = (string)$row['model'];
                 $tipeModel = trim(($merek ? $merek.' ' : '').$model);
-                if (mb_strlen($tipeModel, 'UTF-8') > 120) {
-                    $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
-                }
+                if (mb_strlen($tipeModel, 'UTF-8') > 120) $tipeModel = mb_substr($tipeModel, 0, 120, 'UTF-8');
 
                 $lokasi = trim((string)$row['lokasi']);
                 $serial = trim((string)$row['serial_no']);
@@ -444,20 +444,45 @@ class Qr extends BaseController
                     continue;
                 }
 
-                // FOTO BMN-only
-                $imgSaved = false; 
+                // ========== SIMPAN FOTO (diagnostic) ==========
+                $imgSaved = false;
+                $fotoReason = 'no_zip';
                 $usedKey = null;
 
-                if (!empty($imgIndex)) {
-                    // BMN harus 13 digit untuk bisa match
-                    if ($bmnDigits !== '' && strlen($bmnDigits) === 13) {
-                        if (isset($imgIndex[$bmnDigits])) {
-                            $srcPath = $imgIndex[$bmnDigits];
+                if (!empty($imgBy13) || !empty($imgBy12)) {
+                    $fotoReason = 'no_key';
+                    if ($bmnDigits !== '') {
+                        $srcPath = null;
+                        if (strlen($bmnDigits) === 13 && isset($imgBy13[$bmnDigits])) {
+                            $srcPath = $imgBy13[$bmnDigits];
                             $usedKey = $bmnDigits;
-                            unset($imgIndex[$bmnDigits]);
+                            unset($imgBy13[$bmnDigits]);
+                        } elseif (strlen($bmnDigits) === 12 && isset($imgBy12[$bmnDigits])) {
+                            $srcPath = $imgBy12[$bmnDigits];
+                            $usedKey = array_search($srcPath, $imgBy13, true) ?: null; // mungkin ada pasangan 13
+                            unset($imgBy12[$bmnDigits]);
+                            if ($usedKey) unset($imgBy13[$usedKey]);
+                        } else {
+                            // fallback: cari yang 13-digit berakhiran 12-digit (untuk CSV 12 digit)
+                            if (strlen($bmnDigits) === 12) {
+                                foreach ($imgBy13 as $k13 => $p) {
+                                    if (substr($k13, -12) === $bmnDigits) {
+                                        $srcPath = $p; $usedKey = $k13;
+                                        unset($imgBy13[$k13], $imgBy12[substr($k13, -12)]);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($srcPath) {
                             $destDir = FCPATH.'uploads/ac_units/'.$id;
                             if (is_dir($destDir) || @mkdir($destDir, 0775, true) || is_dir($destDir)) {
-                                $imgSaved = $this->processAndSaveImage($srcPath, $destDir);
+                                $save = $this->processAndSaveImageDetailed($srcPath, $destDir);
+                                $imgSaved   = $save['ok'];
+                                $fotoReason = $save['reason'];
+                            } else {
+                                $fotoReason = 'mkdir_failed';
                             }
                         }
                     }
@@ -465,11 +490,12 @@ class Qr extends BaseController
 
                 $okCount++;
                 $results[] = [
-                    'row'   => $rowNum, 'ok' => true, 'id' => (int)$id,
-                    'token' => $data['kode_qr'] ?? null,
-                    'url'   => site_url('ac/'.($data['kode_qr'] ?? '')),
-                    'foto'  => $imgSaved ? 'saved' : 'none',
-                    'foto_key' => $usedKey,
+                    'row'        => $rowNum, 'ok' => true, 'id' => (int)$id,
+                    'token'      => $data['kode_qr'] ?? null,
+                    'url'        => site_url('ac/'.($data['kode_qr'] ?? '')),
+                    'foto'       => $imgSaved ? 'saved' : 'none',
+                    'foto_key'   => $usedKey,
+                    'foto_reason'=> $imgSaved ? 'ok' : $fotoReason,
                 ];
             } catch (\Throwable $e) {
                 $results[] = [
@@ -483,12 +509,11 @@ class Qr extends BaseController
         if ($tmpDir) $this->rrmdir($tmpDir);
 
         return $this->response->setJSON($this->withCsrf([
-            'ok'       => true,
-            'total'    => count($norm),
-            'success'  => $okCount,
-            'failed'   => count($norm) - $okCount,
-            'skipped'  => $skippedNonArray,
-            'results'  => $results,
+            'ok'            => true,
+            'total'         => count($norm),
+            'success'       => $okCount,
+            'failed'        => count($norm) - $okCount,
+            'results'       => $results,
             'zip_dup_count' => count($zipDuplicates),
         ]));
     }
@@ -506,6 +531,43 @@ class Qr extends BaseController
         return null;
     }
 
+    private function isSci(string $s): bool
+    {
+        return (bool)preg_match('/^[+-]?\d+(?:\.\d+)?\s*[eE]\s*[+-]?\d+$/', trim($s));
+    }
+
+    private function sciToPlainPhp(string $s): ?string
+    {
+        $s = preg_replace('/\s+/', '', trim($s));
+        if (!preg_match('/^([+-]?)(\d+)(?:\.(\d*))?[eE]([+-]?\d+)$/', $s, $m)) return null;
+        $sign = $m[1] === '-' ? '-' : '';
+        $int  = $m[2];
+        $frac = $m[3] ?? '';
+        $exp  = (int)$m[4];
+        $digits = $int . $frac;
+        $pointPos = strlen($int);
+        $newPos = $pointPos + $exp;
+
+        if ($exp >= 0) {
+            if ($newPos >= strlen($digits)) {
+                $digits .= str_repeat('0', $newPos - strlen($digits));
+                return $sign . preg_replace('/^0+$/', '0', $digits);
+            } else {
+                $left = substr($digits, 0, $newPos);
+                $right = substr($digits, $newPos);
+                return $sign . ($right !== '' ? ($left !== '' ? $left : '0') . '.' . $right : $left);
+            }
+        } else {
+            if ($newPos <= 0) {
+                return $sign . '0.' . str_repeat('0', -$newPos) . ltrim($digits, '0');
+            } else {
+                $left = substr($digits, 0, $newPos);
+                $right = substr($digits, $newPos);
+                return $sign . ($right !== '' ? $left . '.' . $right : $left);
+            }
+        }
+    }
+
     private function makeKodeQrUnique(AcUnitModel $AC, int $bytes = 16): string
     {
         for ($i = 0; $i < 5; $i++) {
@@ -517,13 +579,11 @@ class Qr extends BaseController
 
     private function makeUniqueValue(AcUnitModel $AC, string $column, string $base, int $maxLen = 64): string
     {
-        $val = $base;
-        $i = 2;
+        $val = $base; $i = 2;
         while ($AC->where($column, $val)->first()) {
             $suffix = ' #'.$i;
             $val = mb_substr($base, 0, $maxLen - mb_strlen($suffix, 'UTF-8'), 'UTF-8') . $suffix;
-            $i++;
-            if ($i > 9999) break;
+            $i++; if ($i > 9999) break;
         }
         return $val;
     }
@@ -575,6 +635,22 @@ class Qr extends BaseController
         return null;
     }
 
+    /** heuristik sederhana untuk mendeteksi baris header */
+    private function looksLikeHeaderRow(array $row): bool
+    {
+        $a = array_change_key_case($row, CASE_LOWER);
+        $nama = strtolower((string)($a['nama'] ?? ''));
+        $merek = strtolower((string)($a['merek'] ?? ''));
+        $model = strtolower((string)($a['model'] ?? ''));
+        $lokasi = strtolower((string)($a['lokasi'] ?? ''));
+        $bmn = strtolower((string)($a['bmn_no_display'] ?? ''));
+        return $nama === 'nama' && (
+            $merek === 'merek' || $model === 'model' || $lokasi === 'lokasi' ||
+            $bmn === 'nomor bmn' || $bmn === 'bmn'
+        );
+    }
+
+    // Ubah angka "12,3" / "12.3" → "12.3" (string); selain itu null
     private function toDecimal(?string $s): ?string
     {
         $s = trim((string)$s);
@@ -607,19 +683,30 @@ class Qr extends BaseController
         return $dt->format('Y-m-d');
     }
 
-    // Resize+compress jpg (≤1600px), tolak >5MB or >12MP; EXIF safe
-    private function processAndSaveImage(string $srcPath, string $destDir, int $maxW = 1600, int $maxH = 1600): bool
+    /**
+     * Resize + compress → main.jpg; kembalikan reason detail
+     */
+    private function processAndSaveImageDetailed(string $srcPath, string $destDir, int $maxW = 1600, int $maxH = 1600): array
     {
-        if (!is_file($srcPath)) return false;
+        if (!is_file($srcPath)) return ['ok'=>false,'reason'=>'missing'];
         $size = @filesize($srcPath);
-        if ($size !== false && $size > 5 * 1024 * 1024) return false;
+        if ($size !== false && $size > 10 * 1024 * 1024) return ['ok'=>false,'reason'=>'too_big']; // 10MB
 
         $info = @getimagesize($srcPath);
-        if (!is_array($info) || count($info) < 3) return false;
+        if (!is_array($info) || count($info) < 3) return ['ok'=>false,'reason'=>'not_image'];
         $w = (int)($info[0] ?? 0);
         $h = (int)($info[1] ?? 0);
         $type = (int)($info[2] ?? 0);
-        if ($w <= 0 || $h <= 0 || $w * $h > 12000000) return false;
+        if ($w <= 0 || $h <= 0 || $w * $h > 16000000) return ['ok'=>false,'reason'=>'bad_dims']; // 16MP
+
+        // kalau GD tidak ada, tapi file JPEG → copy apa adanya ke main.jpg
+        if (!function_exists('imagecreatetruecolor')) {
+            if ($type === IMAGETYPE_JPEG) {
+                foreach (['jpg','jpeg','png','webp'] as $x) @unlink($destDir.'/main.'.$x);
+                return ['ok'=>@copy($srcPath, $destDir.'/main.jpg'),'reason'=>@copy($srcPath, $destDir.'/main.jpg')?'ok_copy':'copy_fail'];
+            }
+            return ['ok'=>false,'reason'=>'no_gd'];
+        }
 
         switch ($type) {
             case IMAGETYPE_JPEG: $src = @imagecreatefromjpeg($srcPath); break;
@@ -627,7 +714,13 @@ class Qr extends BaseController
             case IMAGETYPE_WEBP: $src = function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($srcPath) : null; break;
             default: $src = null;
         }
-        if (!$src) return false;
+        if (!$src) {
+            if ($type === IMAGETYPE_JPEG) {
+                foreach (['jpg','jpeg','png','webp'] as $x) @unlink($destDir.'/main.'.$x);
+                return ['ok'=>@copy($srcPath, $destDir.'/main.jpg'),'reason'=>@copy($srcPath, $destDir.'/main.jpg')?'ok_copy':'copy_fail'];
+            }
+            return ['ok'=>false,'reason'=>'unsupported'];
+        }
 
         if ($type === IMAGETYPE_JPEG && function_exists('exif_read_data')) {
             $ort = 1;
@@ -638,7 +731,7 @@ class Qr extends BaseController
             }
             if ($ort >= 2 && $ort <= 8) {
                 $src = $this->applyExifOrientation($src, $ort);
-                if (!$src) return false;
+                if (!$src) return ['ok'=>false,'reason'=>'exif_fail'];
                 $w = imagesx($src); $h = imagesy($src);
             }
         }
@@ -646,19 +739,19 @@ class Qr extends BaseController
         $ratio = min($maxW / max(1,$w), $maxH / max(1,$h), 1.0);
         $nw = (int)round($w * $ratio);
         $nh = (int)round($h * $ratio);
-        if ($nw <= 0 || $nh <= 0) { imagedestroy($src); return false; }
+        if ($nw <= 0 || $nh <= 0) { imagedestroy($src); return ['ok'=>false,'reason'=>'resize_zero']; }
 
         $dst = imagecreatetruecolor($nw, $nh);
         $white = imagecolorallocate($dst, 255, 255, 255);
         imagefill($dst, 0, 0, $white);
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        @imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
 
         foreach (['jpg','jpeg','png','webp'] as $x) @unlink($destDir.'/main.'.$x);
         $ok = @imagejpeg($dst, $destDir.'/main.jpg', 82);
 
         imagedestroy($dst);
         imagedestroy($src);
-        return (bool)$ok;
+        return ['ok'=>(bool)$ok,'reason'=>$ok?'ok_jpg':'save_fail'];
     }
 
     private function applyExifOrientation($img, int $ort)

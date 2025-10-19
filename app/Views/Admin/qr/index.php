@@ -213,6 +213,7 @@
           <div class="alert alert-info small">
             <div class="fw-semibold mb-1">Format CSV (12 kolom urut):</div>
             <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
+            <div class="mt-2">Baris pertama yang mirip header akan <b>terdeteksi otomatis</b> dan tidak diimpor.</div>
           </div>
 
           <div class="row g-3">
@@ -225,29 +226,19 @@
               <div class="form-text">Maksimal 1000 baris per unggahan.</div>
 
               <div class="alert alert-secondary mt-3 small">
-                <div class="fw-semibold mb-1">Aturan tanggal:</div>
+                <div class="fw-semibold mb-1">Catatan:</div>
                 <ul class="mb-1">
-                  <li>CSV pakai <code>DD-MM-YYYY</code> (contoh: <code>20-09-2025</code>).</li>
-                  <li>Jika salah format → disimpan kosong (tidak error).</li>
+                  <li>Jika di CSV kolom BMN berubah jadi <code>1.23E+12</code>, sistem akan mengubahnya otomatis ke angka biasa.</li>
+                  <li>Tanggal pakai format <code>DD-MM-YYYY</code>.</li>
                 </ul>
-              </div>
-
-              <div class="alert alert-secondary mt-3 small">
-                <div class="fw-semibold mb-1">Aturan Status AC:</div>
-                <ul class="mb-1">
-                  <li>Status Harus <code>NORMAL/RUSAK_RINGAN/RUSAK_BERAT</code></li>
-                  <li>Jika salah pengetikan maka status akan disimpan sebagai <code>NORMAL</code>.</li>
-                </ul>
-                <b>Catatan: Pastikan untuk memeriksa kembali data sebelum mengunggah.</b>
               </div>
 
               <div class="mt-3">
                 <label class="form-label">Unggah ZIP Foto (opsional)</label>
                 <input type="file" name="images_zip" id="imagesZip" accept=".zip" class="form-control">
                 <div class="form-text">
-                  Pencocokan foto berdasarkan <b>13 digit Nomor BMN</b> saja. Separator (<code>.</code>, <code>-</code>, spasi) di CSV & nama file <b>bebas</b>.
-                  Contoh nama file yang cocok: <code>3050104002068.jpg</code>, <code>3.05.01.04.002 - 068.png</code>.
-                  JPG/PNG/WebP, ≤ 5 MB per file.
+                  Pencocokan foto berdasarkan <b>13 digit Nomor BMN</b>. Nama file boleh pakai separator (<code>.</code>, <code>-</code>, spasi).
+                  Contoh: <code>3050104002068.jpg</code> atau <code>3.05.01.04.002 - 068.png</code>.
                 </div>
               </div>
             </div>
@@ -267,13 +258,15 @@
                   </tbody>
                 </table>
               </div>
-              <div class="small mt-2"><span id="bulkCount" class="text-muted">0 baris siap disimpan</span></div>
+              <div class="small mt-2">
+                <span id="bulkCount" class="text-muted">0 baris siap disimpan</span>
+                <span id="bulkMsg" class="ms-2 text-muted"></span>
+              </div>
             </div>
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <div class="me-auto small text-muted" id="bulkMsg"></div>
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
         <button type="button" class="btn btn-success" id="btnBulkSave" disabled><i class="bi bi-save"></i> Simpan Semua</button>
       </div>
