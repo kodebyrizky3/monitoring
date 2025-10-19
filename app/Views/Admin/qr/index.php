@@ -228,7 +228,8 @@
               <div class="alert alert-secondary mt-3 small">
                 <div class="fw-semibold mb-1">Catatan:</div>
                 <ul class="mb-1">
-                  <li>Jika di CSV kolom BMN berubah jadi <code>1.23E+12</code>, sistem akan mengubahnya otomatis ke angka biasa.</li>
+                  <li>Satu Perangkat hanya bisa satu gambar atau foto</li>
+                  <li>Rules isi status ac <code>NORMAL</code>, <code>RUSAK_RINGAN</code>, <code>RUSAK_BERAT</code>, jika salah input maka akan default <code>NORMAL</code></li>
                   <li>Tanggal pakai format <code>DD-MM-YYYY</code>.</li>
                 </ul>
               </div>
