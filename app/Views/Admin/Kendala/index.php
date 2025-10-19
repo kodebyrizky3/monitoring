@@ -1,9 +1,8 @@
-<?php /* Admin: Data Kendala (gabungan dari vw_admin_kendala) */ ?>
-
+<?php /* Admin: Data Kendala */ ?>
 <?= $this->extend('layouts/admin_layout') ?>
 
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/admin-kendala.css') ?>?v=1.0.0">
+<link rel="stylesheet" href="<?= base_url('assets/css/admin-kendala.css') ?>?v=1.0.2">
 <style>
   .type-chip { font-weight:600; }
   .type-chip i { margin-right:.35rem; }
@@ -15,7 +14,6 @@
 
 <?= $this->section('content') ?>
 
-<!-- CSRF meta untuk JS -->
 <meta name="csrf-token-name" content="<?= csrf_token() ?>">
 <meta name="csrf-token-value" content="<?= csrf_hash() ?>">
 
@@ -124,10 +122,8 @@
     base: '<?= rtrim(site_url(), '/') ?>',
     searchUrl: '<?= base_url('admin/kendala/search') ?>',
     exportUrl: '<?= base_url('admin/kendala/export') ?>',
-    // DETAIL
     detailTicketUrl:  (id) => '<?= base_url('admin/kendala/ticket') ?>/'+id,
     detailServiceUrl: (id) => '<?= base_url('admin/kendala/service') ?>/'+id,
-    // ACTIONS (POST)
     approveTicketUrl: (id) => '<?= base_url('admin/kendala/ticket') ?>/'+id+'/approve',
     rejectTicketUrl:  (id) => '<?= base_url('admin/kendala/ticket') ?>/'+id+'/reject',
     approveServiceUrl:(id) => '<?= base_url('admin/kendala/service') ?>/'+id+'/approve',
@@ -136,5 +132,5 @@
     csrfValue: document.querySelector('meta[name="csrf-token-value"]')?.content || '<?= csrf_hash() ?>',
   };
 </script>
-<script src="<?= base_url('assets/js-admin/kendala.js') ?>?v=1.3.0"></script>
+<script src="<?= base_url('assets/js-admin/kendala.js') ?>?v=1.3.1"></script>
 <?= $this->endSection() ?>
