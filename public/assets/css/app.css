@@ -2,174 +2,326 @@
    APP LAYOUT (CI4 + Bootstrap 5)
    Topbar & Sidebar fixed — hanya konten yang scroll
    ========================================================= */
-:root{
-  --topbar-h: 52px;              /* tinggi topbar */
+:root {
+  --topbar-h: 52px; /* tinggi topbar */
   --sidebar-w: 240px;
 
-  --sidebar-bg: #1f2937;         /* dark slate */
+  --sidebar-bg: #1f2937; /* dark slate */
   --sidebar-hover: #374151;
   --sidebar-text: #e5e7eb;
-  --sidebar-border: rgba(255,255,255,.08);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
 
-  --ease-smooth: cubic-bezier(.22,.61,.36,1);
+  --ease-smooth: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-html, body{ height:100%; margin:0; overflow:hidden; background:#0f172a0a; }
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #0f172a0a;
+}
 *,
-*::before,*::after{ box-sizing:border-box; }
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* bantu flex parent */
+.app-wrapper {
+  width: 100%;
+  min-width: 0;
+}
 
 /* =========================================================
    TOPBAR (fixed)
    ========================================================= */
-.navbar.app-topbar{
-  position:fixed; top:0; left:0; right:0;
-  height:var(--topbar-h); z-index:1040;
-  background:var(--sidebar-bg)!important; color:var(--sidebar-text)!important;
-  border-bottom:1px solid var(--sidebar-border);
-  padding-block:2px;
+.navbar.app-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--topbar-h);
+  z-index: 1040;
+  background: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+  border-bottom: 1px solid var(--sidebar-border);
+  padding-block: 2px;
 }
-.navbar.app-topbar .container-fluid{
+.navbar.app-topbar .container-fluid {
   min-height: var(--topbar-h);
-  padding-inline: .75rem;
-  display: flex;                 /* baru */
-  align-items: center;           /* baru: lurusin konten vertikal */
-  position: relative;            /* agar absolute child (judul) nempel ke sini */
+  padding-inline: 0.75rem;
+  display: flex; /* lurusin konten vertikal */
+  align-items: center;
+  position: relative; /* agar absolute child (judul) nempel ke sini */
 }
 
 /* Brand kiri */
-.app-topbar .brand-img-topbar{ height:32px; width:auto; object-fit:contain; }
-@media (min-width:992px){ .app-topbar .brand-img-topbar{ height:36px; } }
-.app-topbar .brand-text-topbar{ font-weight:700; letter-spacing:.3px; color:var(--sidebar-text); line-height:1; }
+.app-topbar .brand-img-topbar {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+@media (min-width: 992px) {
+  .app-topbar .brand-img-topbar {
+    height: 36px;
+  }
+}
+.app-topbar .brand-text-topbar {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--sidebar-text);
+  line-height: 1;
+}
 
 /* Judul center absolut (tidak terpengaruh kiri/kanan) */
-/* container pembungkus judul */
-.topbar-container{ position: relative; min-height: var(--topbar-h); }
-
-/* Pusatkan judul bener-bener di tengah bar */
-.topbar-center{
+.topbar-container {
+  position: relative;
+  min-height: var(--topbar-h);
+}
+.topbar-center {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);  /* tidak pakai properti CSS 'translate:' */
-  pointer-events: none;               /* biar klik kanan-kiri tetap bisa */
+  transform: translate(-50%, -50%); /* bukan properti 'translate:' */
+  pointer-events: none; /* biar klik kanan-kiri tetap bisa */
 }
-
-.page-title-center{
+.page-title-center {
   pointer-events: auto;
   color: var(--sidebar-text);
   font-weight: 600;
-  font-size: 1rem;     /* boleh naikkan/dturunkan sesuai selera */
-  line-height: 1;      /* rapat, biar sejajar logo */
+  font-size: 1rem;
+  line-height: 1;
 }
-
 
 /* Tombol topbar */
-.btn-topbar{
-  color:var(--sidebar-text)!important; border:1px solid rgba(255,255,255,.25);
-  background:transparent; padding:.25rem .5rem; line-height:1.1;
+.btn-topbar {
+  color: var(--sidebar-text) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  padding: 0.25rem 0.5rem;
+  line-height: 1.1;
 }
-.btn-topbar:hover{ background:var(--sidebar-hover); color:#fff!important; border-color:rgba(255,255,255,.35); }
-.app-topbar #notifCount{ transform:translate(-50%,-50%); }
+.btn-topbar:hover {
+  background: var(--sidebar-hover);
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.app-topbar #notifCount {
+  transform: translate(-50%, -50%);
+}
 
 /* (opsional) anim ikon hamburger → X saat offcanvas open */
-.btn-topbar .bi{ transition:transform .28s var(--ease-smooth), opacity .2s; }
-.btn-topbar.icon-x .bi{ transform:rotate(180deg) scale(1.05); }
+.btn-topbar .bi {
+  transition: transform 0.28s var(--ease-smooth), opacity 0.2s;
+}
+.btn-topbar.icon-x .bi {
+  transform: rotate(180deg) scale(1.05);
+}
 
 /* =========================================================
    SIDEBAR (fixed desktop) + NAV
    ========================================================= */
-.app-sidebar{
-  position:fixed; top:var(--topbar-h); bottom:0; left:0; width:var(--sidebar-w);
-  background:var(--sidebar-bg); color:var(--sidebar-text);
-  border-right:1px solid var(--sidebar-border);
-  overflow-y:auto; overflow-x:hidden; z-index:1030;
+.app-sidebar {
+  position: fixed;
+  top: var(--topbar-h);
+  bottom: 0;
+  left: 0;
+  width: var(--sidebar-w);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  border-right: 1px solid var(--sidebar-border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1030;
 }
 
-.sidebar-nav{ list-style:none; margin:0; padding:0; }
-.sidebar-nav .nav-link{
-  display:flex; align-items:center; gap:.5rem; color:#d1d5db;
-  padding:.625rem 1rem; border-radius:.75rem; margin:.15rem .5rem;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  transition:background-color .15s ease, color .15s ease;
+.sidebar-nav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.sidebar-nav .nav-link i{ width:1.25rem; text-align:center; }
+.sidebar-nav .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #d1d5db;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  margin: 0.15rem 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.sidebar-nav .nav-link i {
+  width: 1.25rem;
+  text-align: center;
+}
 .sidebar-nav .nav-link:hover,
-.sidebar-nav .nav-link.active{ background:var(--sidebar-hover); color:#fff; }
+.sidebar-nav .nav-link.active {
+  background: var(--sidebar-hover);
+  color: #fff;
+}
 
 /* Submenu */
-.sidebar-nav .nav .nav-link{
-  justify-content:flex-start; text-align:left;
-  padding-left:1.25rem; border-left:1px solid var(--sidebar-border);
-  margin-left:1rem; max-width:calc(100% - 1rem);
+.sidebar-nav .nav .nav-link {
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--sidebar-border);
+  margin-left: 1rem;
+  max-width: calc(100% - 1rem);
 }
-.sidebar-caret{ transition:transform .2s ease; }
-[aria-expanded="true"] .sidebar-caret{ transform:rotate(180deg); }
+.sidebar-caret {
+  transition: transform 0.2s ease;
+}
+[aria-expanded="true"] .sidebar-caret {
+  transform: rotate(180deg);
+}
 
 /* Scrollbar */
-.app-sidebar::-webkit-scrollbar{ width:8px; }
-.app-sidebar::-webkit-scrollbar-thumb{ background:#2b3443; border-radius:8px; }
+.app-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+.app-sidebar::-webkit-scrollbar-thumb {
+  background: #2b3443;
+  border-radius: 8px;
+}
 
 /* =========================================================
    CONTENT (only this scrolls)
    ========================================================= */
-.app-content{
-  margin-top:var(--topbar-h); margin-left:var(--sidebar-w);
-  height:calc(100vh - var(--topbar-h)); min-height:calc(100vh - var(--topbar-h));
-  overflow:auto; padding:1rem; background-clip:padding-box;
+.app-content {
+  margin-top: var(--topbar-h);
+  margin-left: var(--sidebar-w);
+  height: calc(100vh - var(--topbar-h));
+  min-height: calc(100vh - var(--topbar-h));
+  overflow: auto;
+  padding: 1rem;
+  padding-bottom: 0; /* hilangkan gap bawah untuk footer */
+  background-clip: padding-box;
+
+  /* penting untuk footer nempel & area melar penuh */
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto; /* ⬅️ ini yang bikin <main> melar dalam .app-wrapper */
+}
+
+/* Pastikan container di dalam .app-content tidak mengecil */
+.app-content > .container,
+.app-content > .container-sm,
+.app-content > .container-md,
+.app-content > .container-lg,
+.app-content > .container-xl,
+.app-content > .container-xxl,
+.app-content > .container-fluid {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* =========================================================
+   FOOTER (dipanggil DI DALAM .app-content)
+   ========================================================= */
+.app-footer {
+  font-size: 0.9rem;
+  margin-top: auto; /* dorong footer ke dasar .app-content */
+}
+.app-footer .small {
+  line-height: 1.25;
 }
 
 /* =========================================================
    OFFCANVAS (mobile sidebar) + Animations
    ========================================================= */
-.offcanvas.offcanvas-start{
-  top:var(--topbar-h); width:var(--sidebar-w); border:0;
-  background:var(--sidebar-bg); color:var(--sidebar-text);
-  transition:transform 320ms var(--ease-smooth); will-change:transform;
-  box-shadow:0 10px 30px rgba(0,0,0,.25);
+.offcanvas.offcanvas-start {
+  top: var(--topbar-h);
+  width: var(--sidebar-w);
+  border: 0;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  transition: transform 320ms var(--ease-smooth);
+  will-change: transform;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 }
-.offcanvas-backdrop.fade{ opacity:0; }
-.offcanvas-backdrop.show{
-  opacity:.35; transition:opacity 320ms var(--ease-smooth); backdrop-filter:blur(2px);
+.offcanvas-backdrop.fade {
+  opacity: 0;
 }
-#offcanvasSidebar .offcanvas-header{ border-bottom:0; padding-inline:.5rem; }
-#offcanvasSidebar .offcanvas-body{ padding:0; }
-/* Hilangkan brand di offcanvas kalau ada */
-#offcanvasSidebar .sidebar-brand, #offcanvasSidebar .brand-img-sm,
-#offcanvasSidebar .brand-text, #offcanvasSidebar .offcanvas-title{ display:none!important; }
+.offcanvas-backdrop.show {
+  opacity: 0.35;
+  transition: opacity 320ms var(--ease-smooth);
+  backdrop-filter: blur(2px);
+}
+#offcanvasSidebar .offcanvas-header {
+  border-bottom: 0;
+  padding-inline: 0.5rem;
+}
+#offcanvasSidebar .offcanvas-body {
+  padding: 0;
+}
+/* Hilangkan brand di offcanvas */
+#offcanvasSidebar .sidebar-brand,
+#offcanvasSidebar .brand-img-sm,
+#offcanvasSidebar .brand-text,
+#offcanvasSidebar .offcanvas-title {
+  display: none !important;
+}
 
 /* Stagger item saat open */
-#offcanvasSidebar .sidebar-nav > .nav > .nav-item{
+#offcanvasSidebar .sidebar-nav > .nav > .nav-item {
   opacity: 0;
   transform: translateX(-8px);
 }
-/* Bootstrap pakai .show saat offcanvas terbuka */
-#offcanvasSidebar.show .sidebar-nav > .nav > .nav-item{
+#offcanvasSidebar.show .sidebar-nav > .nav > .nav-item {
   animation: ocItemIn 320ms var(--ease-smooth) both;
 }
-@keyframes ocItemIn{
-  from { opacity:0; transform:translateX(-8px); }
-  to   { opacity:1; transform:none; }
+@keyframes ocItemIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-
 
 /* =========================================================
    RESPONSIVE
    ========================================================= */
-@media (max-width:991.98px){
-  .app-sidebar{ display:none; }
-  .app-content{ margin-left:0; }
+@media (max-width: 991.98px) {
+  .app-sidebar {
+    display: none;
+  }
+  .app-content {
+    margin-left: 0;
+  }
 }
-@media (max-width:575.98px){
-  .page-title-center{ font-size:.9rem; max-width:56vw; }
+@media (max-width: 575.98px) {
+  .page-title-center {
+    font-size: 0.9rem;
+    max-width: 56vw;
+  }
 }
 
 /* Reduced motion */
-@media (prefers-reduced-motion:reduce){
-  .offcanvas.offcanvas-start,.offcanvas-backdrop{ transition:none!important; }
-  #offcanvasSidebar .sidebar-nav > .nav > .nav-item{ animation:none!important; opacity:1; transform:none; }
+@media (prefers-reduced-motion: reduce) {
+  .offcanvas.offcanvas-start,
+  .offcanvas-backdrop {
+    transition: none !important;
+  }
+  #offcanvasSidebar .sidebar-nav > .nav > .nav-item {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Utilities */
-img{ max-width:100%; height:auto; }
-.text-dark-50{ color:rgba(0,0,0,.5)!important; }
-  
+img {
+  max-width: 100%;
+  height: auto;
+}
+.text-dark-50 {
+  color: rgba(0, 0, 0, 0.5) !important;
+}

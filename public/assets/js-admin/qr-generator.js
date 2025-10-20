@@ -42,7 +42,6 @@
       ? Swal.fire({ icon: "error", title: t || "Gagal", text: d || "" })
       : alert((t || "Gagal") + (d ? ": " + d : ""));
 
-  // image helpers
   const fileToDataURL = (f) =>
     new Promise((res, rej) => {
       const r = new FileReader();
@@ -88,7 +87,6 @@
     });
   }
 
-  // ===== Main
   document.addEventListener("DOMContentLoaded", () => {
     const form = document.getElementById("formQR");
     const qrWrap = document.getElementById("qrWrap");
@@ -116,17 +114,15 @@
     const pvPhotoBox = document.getElementById("pvPhotoBox");
     const pvImg = document.getElementById("pvImg");
 
-    // Cropper modal elem
     const cropModalEl = document.getElementById("cropModal");
     const cropImgEl = document.getElementById("cropImage");
     const btnCropSave = document.getElementById("btnCropSave");
     const btnCropReset = document.getElementById("btnCropReset");
     const btnCropRotate = document.getElementById("btnCropRotate");
 
-    let cropper = null;
-    let bsCropModal = null;
-
-    let photoDataUrl = null; // sumber foto saat ini (hasil pilih/drag/crop)
+    let cropper = null,
+      bsCropModal = null;
+    let photoDataUrl = null;
 
     function applyPhoto(dataUrl) {
       photoDataUrl = dataUrl || null;
@@ -147,7 +143,7 @@
       }
     }
 
-    // ===== File choose / drop
+    // choose / drop
     btnPick?.addEventListener("click", (e) => {
       e.preventDefault();
       fileInput?.click();
@@ -189,24 +185,20 @@
       });
     }
 
-    // ===== Crop logic
     function openCropper() {
       if (!photoDataUrl) {
         swalErr("Tidak ada foto", "Pilih/unggah foto dulu.");
         return;
       }
-      cropImgEl.src = photoDataUrl; // tampilkan gambar
-      // pastikan modal objek
+      cropImgEl.src = photoDataUrl;
       bsCropModal = bsCropModal || new bootstrap.Modal(cropModalEl);
       bsCropModal.show();
     }
     function initCropper() {
-      // destroy jika ada
       if (cropper) {
         cropper.destroy();
         cropper = null;
       }
-      // buat cropper dengan rasio 16:9 (match hero/detail)
       cropper = new Cropper(cropImgEl, {
         viewMode: 1,
         dragMode: "move",
@@ -232,34 +224,27 @@
       e.preventDefault();
       openCropper();
     });
-
     cropModalEl?.addEventListener("shown.bs.modal", initCropper);
     cropModalEl?.addEventListener("hidden.bs.modal", destroyCropper);
-
     btnCropReset?.addEventListener("click", (e) => {
       e.preventDefault();
-      if (cropper) cropper.reset();
+      cropper && cropper.reset();
     });
     btnCropRotate?.addEventListener("click", (e) => {
       e.preventDefault();
-      if (cropper) cropper.rotate(90);
+      cropper && cropper.rotate(90);
     });
-
     btnCropSave?.addEventListener("click", async () => {
       if (!cropper) return;
       try {
-        // target 1280x720 biar tajam, tetap 16:9
         const canvas = cropper.getCroppedCanvas({
           width: 1280,
           height: 720,
           imageSmoothingQuality: "high",
         });
         const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        // terapkan ke preview (gantikan foto lama)
         applyPhoto(dataUrl);
-        // tutup modal
         bsCropModal?.hide();
-        // notifikasi
         swalOK("Sukses", "Foto berhasil dicrop & disimpan ke preview.");
       } catch (e) {
         console.error(e);
@@ -267,7 +252,7 @@
       }
     });
 
-    // ======== LIMITERS (UX)
+    // ===== Limiters & Masking =====
     function digitsOnly(el, maxLen = null) {
       if (!el) return;
       const toDigits = (v) => (v || "").replace(/\D+/g, "");
@@ -295,8 +280,48 @@
         if (c < 48 || c > 57) e.preventDefault();
       });
     }
+
+    // BMN mask: ketik 13 digit → tampil "X.XX.XX.XX.XXX - XXX"
+    function formatBmnFromDigits(digs) {
+      const d = (digs || "").replace(/\D+/g, "").slice(0, 13);
+      const seg = [1, 2, 2, 2, 3, 3];
+      let out = "",
+        i = 0;
+      for (let idx = 0; idx < seg.length; idx++) {
+        const take = seg[idx];
+        const part = d.slice(i, i + take);
+        out += part;
+        i += part.length;
+        if (part.length < take) break; // belum penuh → stop separator
+        if (idx === 0 || idx === 1 || idx === 2 || idx === 3) out += ".";
+        if (idx === 4) out += " - ";
+      }
+      // buang dot di akhir kalau incomplete
+      out = out.replace(/\.$/, "");
+      // buang " - " di akhir kalau belum ada reg
+      out = out.replace(/\s-\s$/, "");
+      return out;
+    }
+    function bmnAutoMask(el) {
+      if (!el) return;
+      const apply = () => {
+        const digits = el.value.replace(/\D+/g, "");
+        el.value = formatBmnFromDigits(digits);
+      };
+      el.addEventListener("input", apply);
+      el.addEventListener("paste", (e) => {
+        e.preventDefault();
+        const t =
+          (e.clipboardData || window.clipboardData).getData("text") || "";
+        el.value = formatBmnFromDigits(t);
+      });
+      // inisialisasi awal bila ada nilai
+      apply();
+    }
+
     digitsOnly(document.getElementById("kapasitas_btu"), 7);
-    digitsOnly(document.getElementById("bmn_no_display"), 30);
+    bmnAutoMask(document.getElementById("bmn_no_display")); // <-- pakai masker BMN
+
     ["nama", "merek", "model", "lokasi"].forEach((n) => {
       const el = form?.querySelector(`[name="${n}"]`);
       el?.addEventListener("blur", () => {
@@ -304,36 +329,7 @@
       });
     });
 
-    // ======== Soft validation per-field (touched rule)
-    if (form) {
-      const fields = Array.from(form.querySelectorAll("input,select,textarea"));
-      const touched = new WeakSet();
-
-      const paint = (el) => {
-        const val = (el.value || "").trim();
-        if (!val && !el.required) {
-          el.classList.remove("is-valid", "is-invalid");
-          return;
-        }
-        const ok = el.checkValidity();
-        el.classList.toggle("is-valid", touched.has(el) && ok);
-        el.classList.toggle("is-invalid", touched.has(el) && !ok);
-      };
-
-      fields.forEach((el) => {
-        el.addEventListener("input", () => {
-          touched.add(el);
-          paint(el);
-        });
-        el.addEventListener("blur", () => {
-          touched.add(el);
-          paint(el);
-        });
-        el.classList.remove("is-valid", "is-invalid");
-      });
-    }
-
-    // ======== Badge status
+    // Status badge
     function labelStatus(code) {
       switch (code) {
         case "NORMAL":
@@ -359,24 +355,24 @@
       }
     }
     function applyStatusBadge(code) {
-      if (!pvBadge) return;
-      pvBadge.className = classForStatus(code);
-      pvBadge.textContent = labelStatus(code);
+      const el = pvBadge;
+      if (!el) return;
+      el.className = classForStatus(code);
+      el.textContent = labelStatus(code);
     }
 
-    // ======== SUBMIT
+    // SUBMIT
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
 
       if (!form.checkValidity()) {
         form.classList.add("was-validated");
         return;
-      } else {
-        form.classList.remove("was-validated");
-        form
-          .querySelectorAll(".is-valid,.is-invalid")
-          .forEach((el) => el.classList.remove("is-valid", "is-invalid"));
       }
+      form.classList.remove("was-validated");
+      form
+        .querySelectorAll(".is-valid,.is-invalid")
+        .forEach((el) => el.classList.remove("is-valid", "is-invalid"));
 
       const fd = new FormData(form);
       const nama = (fd.get("nama") || "").toString().trim();
@@ -391,11 +387,24 @@
         .toUpperCase()
         .replace(/\s+/g, "_");
 
-      const bmn = ((fd.get("bmn_no_display") || "") + "").replace(/\D+/g, "");
+      // BMN: ambil apa adanya (sudah termask), tapi hard-sanitize safe chars
+      const bmn = ((fd.get("bmn_no_display") || "") + "")
+        .replace(/[^0-9.\-\s]+/g, "")
+        .trim();
       const kap =
         ((fd.get("kapasitas_btu") || "") + "").replace(/\D+/g, "") || "12000";
-      fd.set("bmn_no_display", bmn);
+
+      // normalisasi field utk backend
+      fd.set("nomor_unik", nama);
+      fd.set(
+        "tipe_model",
+        (merek ? merek.toUpperCase() + " " : "") + (model || "")
+      );
+      fd.set("serial_no", serial);
+      fd.set("lokasi", lokasi);
+      fd.set("bmn_no_display", bmn); // kirim display
       fd.set("kapasitas_btu", kap);
+      fd.set("status_ac", status);
       fd.set("status", status);
 
       const token = randomHex(16);
@@ -424,6 +433,7 @@
         fd.set("foto", blob, fname);
       }
       fd.set("token", token);
+      fd.set("kode_qr", token);
 
       if (saveUrl) {
         try {
@@ -447,7 +457,7 @@
             } catch {}
           }
 
-          // refresh CSRF hidden input
+          // refresh CSRF
           if (js && js.csrf && js.csrf_token) {
             const inp = form.querySelector(`input[name="${js.csrf_token}"]`);
             if (inp) inp.value = js.csrf;
@@ -470,7 +480,7 @@
         } catch (err) {
           console.error("Save error:", err);
           const msg =
-            err && err.message && err.message !== "{}"
+            err?.message && err.message !== "{}"
               ? err.message
               : "Terjadi kesalahan saat menyimpan.";
           swalErr("Gagal simpan", msg);
@@ -482,7 +492,7 @@
       // simpan state (preview)
       try {
         const state = {
-          token,
+          token: url.split("/").pop(),
           url,
           nama,
           merek,
@@ -499,7 +509,7 @@
       } catch {}
     });
 
-    // ======== RESET
+    // RESET
     function resetUI() {
       try {
         ["qrcode", "qrInCard"].forEach((id) => {
@@ -517,16 +527,16 @@
           "pvUrl",
           "cardUrlText",
         ].forEach((id) => setText(id, "—"));
-        applyStatusBadge(""); // reset badge
+        pvBadge &&
+          ((pvBadge.className = "badge text-bg-secondary status-badge"),
+          (pvBadge.textContent = "Status"));
         qrWrap?.classList.add("is-empty");
         btnOpen && (btnOpen.href = "#");
 
-        // foto & dropzone
         const pvImg = document.getElementById("pvImg");
         const dzPreview = document.getElementById("dzPreview");
         const dzPreviewBox = document.getElementById("dzPreviewBox");
         const dzEmpty = document.getElementById("dzEmpty");
-
         pvImg?.removeAttribute("src");
         document.getElementById("pvPhotoBox")?.classList.add("d-none");
         dzPreview?.removeAttribute("src");
@@ -556,7 +566,7 @@
       ?.addEventListener("click", () => setTimeout(resetUI, 0));
     form?.addEventListener("reset", () => setTimeout(resetUI, 0));
 
-    // ===== Lainnya
+    // Lainnya
     document.getElementById("btnDownload")?.addEventListener("click", () => {
       const img =
         document.querySelector("#qrcode img") ||

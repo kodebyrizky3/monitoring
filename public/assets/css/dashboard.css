@@ -1,28 +1,81 @@
 /* ===== Dashboard-only CSS ===== */
-
-/* Kartu KPI seragam */
-.card-stat{ border:0; border-radius:.8rem; }
-.card-stat .card-body{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  min-height:110px;               /* tinggi konsisten di semua kartu */
+:root {
+  --dash-kpi-min-h: 132px; /* tinggi minimal kartu KPI */
+  --dash-chart-h: 360px; /* tinggi panel chart */
 }
-.card-stat .stat-title{ font-size:.9rem; opacity:.85; margin-bottom:.25rem; }
-.card-stat .stat-value{ font-size:2rem; font-weight:700; line-height:1; }
-.card-stat .stat-sub{ font-size:.9rem; opacity:.85; margin-top:.35rem; }
-.card-stat .stat-icon{ font-size:2.5rem; opacity:.75; align-self:center; }
 
-/* Pastikan teks kontras jika pakai background berwarna */
+/* KPI cards */
+.card-stat {
+  border: 0;
+  border-radius: 0.8rem;
+}
+.card-stat .card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: var(--dash-kpi-min-h);
+}
+.card-stat .stat-title {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  margin-bottom: 0.25rem;
+}
+.card-stat .stat-value {
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.card-stat .stat-sub {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  margin-top: 0.35rem;
+}
+.card-stat .stat-icon {
+  font-size: 2.6rem;
+  opacity: 0.75;
+  align-self: center;
+}
+
+/* warna kartu berwarna */
 .card-stat.bg-primary,
 .card-stat.bg-success,
 .card-stat.bg-warning,
-.card-stat.bg-danger{ color:#fff; }
+.card-stat.bg-danger {
+  color: #fff;
+}
+
+/* Chart panel */
+.dash-chart-body {
+  height: var(--dash-chart-h);
+  padding: 0.75rem;
+}
+/* Canvas isi penuh parent */
+#kendalaChart {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+}
 
 /* Tabel aktivitas kecil */
-.table-aktivitas thead th{ font-weight:600; }
+.table-aktivitas thead th {
+  font-weight: 600;
+}
 .table-aktivitas td,
-.table-aktivitas th{ white-space:nowrap; }
+.table-aktivitas th {
+  white-space: nowrap;
+}
 
-/* (Opsional) Chart area */
-#kendalaChart{ max-height:260px; }
+/* Responsive kecil */
+@media (max-width: 575.98px) {
+  :root {
+    --dash-kpi-min-h: 120px;
+    --dash-chart-h: 300px;
+  }
+  .card-stat .stat-value {
+    font-size: 1.8rem;
+  }
+  .card-stat .stat-icon {
+    font-size: 2.3rem;
+  }
+}

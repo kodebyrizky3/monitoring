@@ -1,16 +1,12 @@
 <?= $this->extend('layouts/admin_layout') ?>
 
-<!-- CSS khusus halaman -->
 <?= $this->section('styles') ?>
-<link rel="stylesheet" href="<?= base_url('assets/css/dashboard.css') ?>?v=1.0.0">
+<link rel="stylesheet" href="<?= base_url('assets/css/dashboard.css') ?>?v=1.0.2">
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
 
-
-
 <div class="row g-3">
-  <!-- Total Alat -->
   <div class="col-12 col-lg-3">
     <div class="card shadow-sm card-stat bg-primary">
       <div class="card-body">
@@ -24,7 +20,6 @@
     </div>
   </div>
 
-  <!-- Pending Verifikasi -->
   <div class="col-12 col-lg-3">
     <div class="card shadow-sm card-stat bg-success">
       <div class="card-body">
@@ -38,7 +33,6 @@
     </div>
   </div>
 
-  <!-- Perlu Perbaikan -->
   <div class="col-12 col-lg-3">
     <div class="card shadow-sm card-stat bg-warning">
       <div class="card-body">
@@ -52,7 +46,6 @@
     </div>
   </div>
 
-  <!-- Selesai Bulan Ini -->
   <div class="col-12 col-lg-3">
     <div class="card shadow-sm card-stat bg-danger">
       <div class="card-body">
@@ -71,7 +64,7 @@
   <div class="col-12 col-xl-8">
     <div class="card shadow-sm">
       <div class="card-header bg-white"><strong>Grafik Kendala Bulanan</strong></div>
-      <div class="card-body" style="height:320px;">
+      <div class="card-body dash-chart-body">
         <canvas id="kendalaChart"></canvas>
       </div>
     </div>
@@ -108,14 +101,8 @@
 
 <?= $this->endSection() ?>
 
-<!-- JS khusus halaman: MUAT Chart.js DULU baru dashboard.js -->
 <?= $this->section('scripts') ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script>
-  // tombol refresh (opsional)
-  document.getElementById('refreshDash')?.addEventListener('click', () => {
-    location.reload();
-  });
-</script>
-<script src="<?= base_url('assets/js-admin/dashboard.js') ?>?v=1.0.0"></script>
+<script>document.getElementById('refreshDash')?.addEventListener('click', () => location.reload());</script>
+<script src="<?= base_url('assets/js-admin/dashboard.js') ?>?v=1.0.2"></script>
 <?= $this->endSection() ?>

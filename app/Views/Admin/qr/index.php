@@ -7,7 +7,6 @@
       <div class="card-body">
         <h2 class="h6 mb-3">Detail Perangkat</h2>
 
-        <!-- prevent-autogreen: cegah centang hijau pada input kosong -->
         <form id="formQR"
               class="row g-3 needs-validation prevent-autogreen"
               novalidate autocomplete="off"
@@ -47,9 +46,17 @@
 
           <div class="col-6">
             <label class="form-label">Nomor BMN</label>
-            <input name="bmn_no_display" id="bmn_no_display" class="form-control no-autovalid"
-                   placeholder="1234567890" inputmode="numeric" pattern="\d*" maxlength="30">
-            <div class="form-text">Hanya angka (0–9).</div>
+            <input
+              name="bmn_no_display"
+              id="bmn_no_display"
+              class="form-control no-autovalid"
+              placeholder="3.05.01.04.002 - 068"
+              maxlength="20"
+              autocomplete="off"
+              pattern="^(\d\.\d{2}\.\d{2}\.\d{2}\.\d{3}\s-\s\d{3})$">
+            <div class="form-text">
+              Format otomatis: <code>X.XX.XX.XX.XXX - XXX</code> (ketik angka saja).
+            </div>
           </div>
 
           <div class="col-12">
@@ -61,7 +68,7 @@
             </select>
           </div>
 
-          <!-- FOTO -->
+          <!-- FOTO (single) -->
           <div class="col-12">
             <label class="form-label">Foto AC (opsional)</label>
             <div id="dzFoto" class="dropzone rounded-3 p-3 text-center">
@@ -75,9 +82,7 @@
               <div id="dzPreviewBox" class="dz-preview d-none">
                 <img id="dzPreview" class="img-fluid rounded border" alt="Foto AC">
                 <div class="d-flex flex-wrap gap-2 justify-content-center mt-2">
-                  <button class="btn btn-outline-info btn-sm" id="btnCrop" type="button">
-                    <i class="bi bi-crop"></i> Crop
-                  </button>
+                  <button class="btn btn-outline-info btn-sm" id="btnCrop" type="button"><i class="bi bi-crop"></i> Crop</button>
                   <button class="btn btn-outline-secondary btn-sm" id="btnGanti" type="button">Ganti</button>
                   <button class="btn btn-outline-danger btn-sm" id="btnHapus" type="button">Hapus</button>
                 </div>
@@ -94,10 +99,12 @@
           </div>
 
           <div class="col-12 d-grid d-sm-flex gap-2 mt-2">
-            <button id="btnGen" class="btn btn-primary" type="submit">
-              <i class="bi bi-magic"></i> Generate
-            </button>
+            <button id="btnGen" class="btn btn-primary" type="submit"><i class="bi bi-magic"></i> Generate</button>
             <button type="reset" id="btnReset" class="btn btn-outline-secondary">Reset</button>
+
+            <button type="button" id="btnBulkOpen" class="btn btn-outline-dark ms-sm-auto" data-bs-toggle="modal" data-bs-target="#bulkModal">
+              <i class="bi bi-list-check"></i> Bulk Input
+            </button>
           </div>
         </form>
       </div>
@@ -128,9 +135,7 @@
               </div>
 
               <div class="print-grid mt-3">
-                <div class="qr-in-card">
-                  <div id="qrInCard" class="qr-box"></div>
-                </div>
+                <div class="qr-in-card"><div id="qrInCard" class="qr-box"></div></div>
                 <div class="label-info">
                   <div class="kv"><span class="label">Merek:</span> <span id="pvMerek">—</span></div>
                   <div class="kv"><span class="label">Model/SN:</span> <span id="pvModelSn">—</span></div>
@@ -147,26 +152,13 @@
           </div>
 
           <div class="col-md-6 text-center">
-            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty">
-              <div id="qrcode"></div>
-            </div>
-            <div class="mt-2">
-              <div class="small text-muted">URL Publik:</div>
-              <div class="text-break" id="pvUrl">—</div>
-            </div>
+            <div id="qrWrap" class="qr-wrap border rounded p-2 bg-white is-empty"><div id="qrcode"></div></div>
+            <div class="mt-2"><div class="small text-muted">URL Publik:</div><div class="text-break" id="pvUrl">—</div></div>
             <div class="d-grid d-sm-flex gap-2 mt-3">
-              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-box-arrow-up-right"></i> Buka URL
-              </a>
-              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button">
-                <i class="bi bi-download"></i> Download PNG
-              </button>
-              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button">
-                <i class="bi bi-printer"></i> Cetak Label
-              </button>
-              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button">
-                <i class="bi bi-filetype-json"></i> Simpan JSON
-              </button>
+              <a id="btnOpen" href="#" target="_blank" class="btn btn-outline-primary btn-sm"><i class="bi bi-box-arrow-up-right"></i> Buka URL</a>
+              <button id="btnDownload" class="btn btn-outline-success btn-sm" type="button"><i class="bi bi-download"></i> Download PNG</button>
+              <button id="btnPrint" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-printer"></i> Cetak Label</button>
+              <button id="btnJson" class="btn btn-outline-dark btn-sm" type="button"><i class="bi bi-filetype-json"></i> Simpan JSON</button>
             </div>
           </div>
         </div>
@@ -176,7 +168,7 @@
   </div>
 </div>
 
-<!-- ========== Modal Crop Foto ========== -->
+<!-- Modal Crop Foto -->
 <div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -189,7 +181,7 @@
           <img id="cropImage" alt="Crop source">
         </div>
         <div class="d-flex justify-content-between align-items-center pt-2">
-          <div class="small text-muted">Rasio: 16:9 (sesuai hero & preview)</div>
+          <div class="small text-muted">Rasio: 16:9</div>
           <div class="btn-group btn-group-sm">
             <button id="btnCropRotate" class="btn btn-outline-secondary" type="button" title="Putar 90°"><i class="bi bi-arrow-clockwise"></i> Rotate</button>
             <button id="btnCropReset"  class="btn btn-outline-secondary" type="button"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
@@ -198,9 +190,86 @@
       </div>
       <div class="modal-footer">
         <button id="btnCropCancel" type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button id="btnCropSave"   type="button" class="btn btn-primary">
-          <i class="bi bi-check2"></i> Save
-        </button>
+        <button id="btnCropSave"   type="button" class="btn btn-primary"><i class="bi bi-check2"></i> Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Bulk -->
+<div class="modal fade" id="bulkModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-list-check"></i> Bulk Input AC</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+      <div class="modal-body">
+        <form id="bulkForm" autocomplete="off"
+              data-bulk-url="<?= site_url('admin/qr/bulk-save') ?>"
+              data-diag-url="<?= site_url('admin/qr/diag') ?>">
+          <?= csrf_field() ?>
+
+          <div class="alert alert-info small">
+            <div class="fw-semibold mb-1">Format CSV (12 kolom urut):</div>
+            <code>Nama, Merek, Model, Serial No, Lokasi, Kapasitas BTU, Nomor BMN, Status, Tekanan Freon Terakhir, Amper Terakhir, Terakhir Service, Terakhir Perawatan</code>
+            <div class="mt-2">Baris pertama yang mirip header akan <b>terdeteksi otomatis</b> dan tidak diimpor.</div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <label class="form-label">Unggah CSV</label>
+              <input type="file" id="bulkFile" accept=".csv,.txt" class="form-control">
+              <div class="d-flex align-items-center gap-3 mt-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnTemplate"><i class="bi bi-download"></i> Download Template</button>
+              </div>
+              <div class="form-text">Maksimal 1000 baris per unggahan.</div>
+
+              <div class="alert alert-secondary mt-3 small">
+                <div class="fw-semibold mb-1">Catatan:</div>
+                <ul class="mb-1">
+                  <li>Satu Perangkat hanya bisa satu gambar atau foto</li>
+                  <li>Rules isi status ac <code>NORMAL</code>, <code>RUSAK_RINGAN</code>, <code>RUSAK_BERAT</code>, jika salah input maka akan default <code>NORMAL</code></li>
+                  <li>Tanggal pakai format <code>DD-MM-YYYY</code>.</li>
+                </ul>
+              </div>
+
+              <div class="mt-3">
+                <label class="form-label">Unggah ZIP Foto (opsional)</label>
+                <input type="file" name="images_zip" id="imagesZip" accept=".zip" class="form-control">
+                <div class="form-text">
+                  Pencocokan foto berdasarkan <b>13 digit Nomor BMN</b>. Nama file boleh pakai separator (<code>.</code>, <code>-</code>, spasi).
+                  Contoh: <code>3050104002068.jpg</code> atau <code>3.05.01.04.002 - 068.png</code>.
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-6">
+              <label class="form-label">Preview</label>
+              <div class="table-responsive border rounded" style="max-height:380px; overflow:auto;">
+                <table class="table table-sm table-hover align-middle mb-0" id="bulkPreviewTable">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Nama</th><th>Merek</th><th>Model</th><th>Serial</th><th>Lokasi</th>
+                      <th>BTU</th><th>BMN</th><th>Status</th><th>Freon</th><th>Amper</th><th>Ter. Service</th><th>Ter. Perawatan</th>
+                    </tr>
+                  </thead>
+                  <tbody id="bulkPreviewTbody">
+                    <tr><td colspan="13" class="text-center text-muted py-4">Belum ada data.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="small mt-2">
+                <span id="bulkCount" class="text-muted">0 baris siap disimpan</span>
+                <span id="bulkMsg" class="ms-2 text-muted"></span>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" class="btn btn-success" id="btnBulkSave" disabled><i class="bi bi-save"></i> Simpan Semua</button>
       </div>
     </div>
   </div>
@@ -219,4 +288,5 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 <script src="<?= base_url('assets/js-admin/qr-generator.js') ?>"></script>
+<script src="<?= base_url('assets/js-admin/qr-bulk.js') ?>"></script>
 <?= $this->endSection() ?>
