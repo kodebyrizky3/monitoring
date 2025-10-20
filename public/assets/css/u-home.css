@@ -1,0 +1,64 @@
+:root {
+  --border: #e5e7eb;
+  --muted: #6b7280;
+}
+body {
+  background: #f7f8fa;
+}
+
+.u-appbar {
+  position: sticky;
+  top: 0;
+  z-index: 1021;
+  background: #fff;
+  padding: 0.5rem 0.25rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.u-avatar {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.u-avatar-lg {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.u-card {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.badge.bg-primary-subtle {
+  background: #e6f0ff;
+  color: #0a58ca;
+  border: 1px solid #cfe2ff;
+}
+.badge.bg-light.text-dark.border {
+  background: #fff !important;
+  color: #111827 !important;
+  border: 1px solid var(--border) !important;
+}
+.text-muted.small {
+  color: var(--muted) !important;
+}
+
+.u-tile {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.u-tile .u-tile-icon {
+  font-size: 1.6rem;
+  margin-bottom: 0.35rem;
+}
+
+@media (max-width: 575.98px) {
+  .btn.py-3 {
+    padding-top: 0.9rem !important;
+    padding-bottom: 0.9rem !important;
+  }
+}

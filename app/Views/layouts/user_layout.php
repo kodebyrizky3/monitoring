@@ -17,7 +17,7 @@ $title = isset($title) ? (string)$title : 'Aplikasi';
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js"></script>
 
-  <!-- Global styles (ringan) -->
+  <!-- Base light (lama, dipakai lagi) -->
   <style>
     body { background:#f7f8fa; }
     .container-narrow { max-width: 720px; }
@@ -45,16 +45,14 @@ $title = isset($title) ? (string)$title : 'Aplikasi';
   <!-- Bootstrap JS (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
-  <!-- Expose CSRF token untuk JS -->
+  <!-- CSRF helper -->
   <script>
     window.CSRF = { name: '<?= csrf_token() ?>', hash: '<?= csrf_hash() ?>' };
-    // helper untuk refresh token dari response JSON {csrf: "..."}
     window.syncCsrf = function (hash) {
       if (!hash) return;
       window.CSRF.hash = hash;
       document.querySelectorAll('input[name="<?= csrf_token() ?>"]').forEach(i => i.value = hash);
     };
-    // flash sweetalert (opsional jika pakai session()->getFlashdata('success'/'error'))
     <?php if (session('success')): ?>
       Swal.fire({ icon:'success', title: 'Berhasil', text: <?= json_encode((string)session('success')) ?>, timer: 1300, showConfirmButton: false });
     <?php endif ?>
@@ -64,5 +62,6 @@ $title = isset($title) ? (string)$title : 'Aplikasi';
   </script>
 
   <?= $this->renderSection('scripts') ?>
+  <?= view('partials/swal_flash') ?>
 </body>
 </html>

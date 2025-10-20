@@ -366,8 +366,8 @@
     $("#btnTemplate")?.addEventListener("click", () => {
       const header =
         "Nama,Merek,Model,Serial No,Lokasi,Kapasitas BTU,Nomor BMN,Status,Tekanan Freon Terakhir,Amper Terakhir,Terakhir Service,Terakhir Perawatan\n";
-      // const sample =
-      //   'AC Ruang Rapat,Daikin,FTKC25U,SN001,"Lantai 2",12000,"2.19.06.43.001 - 357",NORMAL,70,3.2,20-09-2025,10-09-2025\n';
+      const sample =
+        'AC Ruang Rapat,Daikin,FTKC25U,SN001,"Lantai 2",12000,"2.19.06.43.001 - 357",NORMAL,70,3.2,20-09-2025,10-09-2025\n';
       const blob = new Blob([header + sample], { type: "text/csv" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
