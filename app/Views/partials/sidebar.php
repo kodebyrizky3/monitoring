@@ -61,22 +61,31 @@ $acIndexUrl = function () {
         <i class="bi bi-chevron-down small sidebar-caret"></i>
       </button>
 
+      <?php
+      $isAcMenuActive = in_array($activeMenu ?? '', ['ac.list', 'ac.add', 'vehicle.list']);
+      ?>
+      <?php
+      // Menu alat (AC & Kendaraan) terbuka jika salah satu aktif
+      $isAcMenuActive = in_array($activeMenu ?? '', ['ac.list', 'ac.add', 'vehicle.list']);
+      ?>
+
       <div class="collapse<?= $isAcMenuActive ? ' show' : '' ?>" id="<?= esc($menuAlatId) ?>">
         <ul class="nav flex-column ms-4 border-start">
           <li>
-            <a class="nav-link <?= $isAcMenuActive ? 'active' : '' ?>"
-               href="<?= $acIndexUrl() ?>"<?= $dismissAttr ?>>
+            <a class="nav-link <?= ($activeMenu === 'ac.list') ? 'active' : '' ?>"
+              href="<?= $acIndexUrl() ?>"<?= $dismissAttr ?>>
               AC
             </a>
           </li>
           <li>
-            <a class="nav-link <?= $active==='alat-kendaraan'?'active':'' ?>"
-               href="<?= base_url('alat/kendaraan') ?>"<?= $dismissAttr ?>>
+            <a class="nav-link <?= ($activeMenu === 'vehicle.list') ? 'active' : '' ?>"
+              href="<?= base_url('admin/master/vehicles') ?>"<?= $dismissAttr ?>>
               Kendaraan
             </a>
           </li>
         </ul>
       </div>
+
     </li>
 
     <li class="nav-item">

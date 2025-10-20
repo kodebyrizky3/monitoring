@@ -62,5 +62,6 @@ $title = isset($title) ? (string)$title : 'Aplikasi';
   </script>
 
   <?= $this->renderSection('scripts') ?>
+  <?= view('partials/swal_flash') ?>
 </body>
 </html>

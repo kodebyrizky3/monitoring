@@ -126,6 +126,33 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
             
         });
 
+        // =========================
+        // ADMIN: Master Data Kendaraan
+        // =========================
+        $routes->group('admin/master', static function ($r) {
+            $r->get   ('vehicles',             'Admin\Vehicles::index');
+            $r->get   ('vehicles/search',      'Admin\Vehicles::search');
+            $r->get   ('vehicles/(:num)',      'Admin\Vehicles::show/$1');
+            $r->post  ('vehicles',             'Admin\Vehicles::store');
+            $r->post  ('vehicles/(:num)',      'Admin\Vehicles::update/$1');      
+            $r->post  ('vehicles/(:num)/delete','Admin\Vehicles::delete/$1');      
+            $r->post  ('vehicles/(:num)/restore','Admin\Vehicles::restore/$1');
+
+            // Fuel Prices
+            $r->get ('fuel-prices',         'Admin\FuelPrices::index',  ['as'=>'admin.fuel.index']);
+            $r->get ('fuel-prices/search',  'Admin\FuelPrices::search', ['as'=>'admin.fuel.search']);
+            $r->post('fuel-prices',         'Admin\FuelPrices::store',  ['as'=>'admin.fuel.store']);
+            $r->post('fuel-prices/(:num)',  'Admin\FuelPrices::update/$1', ['as'=>'admin.fuel.update']);
+            $r->delete('fuel-prices/(:num)','Admin\FuelPrices::delete/$1', ['as'=>'admin.fuel.delete']);
+
+            // Budgets
+            $r->get ('budgets',             'Admin\Budgets::index',  ['as'=>'admin.budgets.index']);
+            $r->get ('budgets/search',      'Admin\Budgets::search', ['as'=>'admin.budgets.search']);
+            $r->post('budgets',             'Admin\Budgets::store',  ['as'=>'admin.budgets.store']);
+            $r->post('budgets/(:num)',      'Admin\Budgets::update/$1', ['as'=>'admin.budgets.update']);
+            $r->delete('budgets/(:num)',    'Admin\Budgets::delete/$1', ['as'=>'admin.budgets.delete']);
+        });
+
 
         // =========================
         // ALIAS REST untuk AC Units (fix 404 DELETE /admin/ac-units/{id})

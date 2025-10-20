@@ -1,0 +1,8 @@
+/* Admin Vehicles – styling */
+.veh-search { width: 220px; }
+#vForm .invalid-feedback { display:block; min-height:1rem; }
+.table td, .table th { vertical-align: middle; }
+
+@media (max-width: 575.98px) {
+  .veh-search { width: 150px; }
+}
